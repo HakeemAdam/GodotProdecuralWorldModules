@@ -1,0 +1,274 @@
+#include "Landscape.h"
+#include "core/object/class_db.h"
+#include "core/object/object.h"
+#include "scene/main/node.h"
+#include "scene/resources/material.h"
+#include "scene/resources/mesh.h"
+#include "scene/resources/texture.h"
+#include "modules/noise/fastnoise_lite.h"
+
+void Landscape::_bind_methods(){
+	ClassDB::bind_method(D_METHOD("generate_landscape"), &Landscape::generate_landscape);
+
+	ClassDB::bind_method(D_METHOD("_on_noise_changed"), &Landscape::_on_noise_changed);
+
+	ClassDB::bind_method(D_METHOD("get_landscape_size"), &Landscape::get_landscape_size);
+
+	ClassDB::bind_method(D_METHOD("set_landscape_size", "p_size"), &Landscape::set_landscape_size);
+
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "landscape_size"), "set_landscape_size", "get_landscape_size");
+
+	ClassDB::bind_method(D_METHOD("get_noise_scale"), &Landscape::get_noise_scale);
+
+	ClassDB::bind_method(D_METHOD("set_noise_scale", "p_scale"), &Landscape::set_noise_scale);
+
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "noise_scale"), "set_noise_scale", "get_noise_scale");
+
+	ClassDB::bind_method(D_METHOD("get_spacing"), &Landscape::get_spacing);
+
+	ClassDB::bind_method(D_METHOD("set_spacing", "p_space"), &Landscape::set_spacing);
+
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "spacing"), "set_spacing", "get_spacing");
+
+	ClassDB::bind_method(D_METHOD("get_landscape_material"), &Landscape::get_landscape_material);
+
+	ClassDB::bind_method(D_METHOD("set_landscape_material", "p_material"), &Landscape::set_landscape_material);
+
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_material", "get_landscape_material");
+
+	ClassDB::bind_method(D_METHOD("get_landscape_noise"), &Landscape::get_landscape_noise);
+
+	ClassDB::bind_method(D_METHOD("set_landscape_noise", "p_noise"), &Landscape::set_landscape_noise);
+
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_noise", PROPERTY_HINT_RESOURCE_TYPE, "FastNoiseLite",PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_noise", "get_landscape_noise");
+
+	ClassDB::bind_method(D_METHOD("get_landscape_texture"), &Landscape::get_landscape_texture);
+
+	ClassDB::bind_method(D_METHOD("set_landscape_texture", "p_texture"), &Landscape::set_landscape_texture);
+
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D",PROPERTY_USAGE_DEFAULT), "set_landscape_texture", "get_landscape_texture");
+
+	ClassDB::bind_method(D_METHOD("get_use_texture"), &Landscape::get_use_texture);
+
+	ClassDB::bind_method(D_METHOD("set_use_texture", "p_set"), &Landscape::set_use_texture);
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_texture"), "set_use_texture", "get_use_texture");
+
+
+}
+
+Landscape::Landscape(){
+	p_landscape_size = Vector2(32,32);
+	p_noise_scale = 10.0f;
+	p_spacing = 1.0f;
+	p_use_texture = false;
+
+	st.instantiate();
+
+}
+
+Landscape::~Landscape(){
+
+}
+
+void Landscape::_notification(int p_what){
+	switch(p_what){
+		case NOTIFICATION_READY : {
+			ready();
+		}
+		break;
+	}
+}
+
+void Landscape::ready(){
+	if(!landscape_material.is_valid()){
+		landscape_material.instantiate();
+		set_material_override(landscape_material);
+	}
+
+	if(!noise_instance.is_valid()){
+		noise_instance.instantiate();
+		noise_instance->connect("changed", Callable(this, "_on_noise_changed"));
+	}
+	generate_landscape();
+}
+
+void Landscape::generate_landscape(){
+
+
+	st->clear();
+	st->begin(Mesh::PRIMITIVE_TRIANGLES);
+
+	float spacing = p_spacing;
+	int width = (int)p_landscape_size.x;
+	int depth = (int)p_landscape_size.y;
+
+
+
+	Ref<Image> img;
+	if (landscape_texture.is_valid()){
+		img = landscape_texture->get_image();
+		if (img.is_valid() && img->is_compressed()) {
+			img->decompress();
+		}
+	}
+
+	// Sample noise
+	for(int z = 0; z < depth; z++){
+		for(int x = 0; x < width; x++){
+			float y = 0.0f;
+
+			// Use texture
+			if (p_use_texture == true) {
+				if (img.is_valid()) {
+					float u = (width > 1) ? (float)x / (width - 1) : 0.0f;
+					float v = (depth > 1) ? (float)z / (depth - 1) : 0.0f;
+
+					int img_x = (int)(u * (img->get_width() - 1));
+					int img_z = (int)(v * (img->get_height() - 1));
+
+					img_x = CLAMP(img_x, 0, img->get_width() - 1);
+					img_z = CLAMP(img_z, 0, img->get_height() - 1);
+
+					Color px_color = img->get_pixel(img_x, img_z);
+					y =  px_color.get_v() * p_noise_scale;
+				}
+			}
+			else {
+				// Use noise
+				if (noise_instance.is_valid()) {
+					y = noise_instance->get_noise_2d((float)x, (float)z) * p_noise_scale;
+				}
+			}
+
+			// Generate UVs and Geometry
+			st->set_uv(Vector2((float)x / (width - 1), (float)z / (depth - 1)));
+			st->add_vertex(Vector3(x * spacing, y, z * spacing));
+		}
+	}
+
+	// Build vetices
+	for(int z = 0; z < depth - 1; z++){
+		for(int x = 0; x < width - 1; x++){
+			// Get vertex row indices
+			int current_row = z * width;
+			int next_row = (z + 1) * width;
+
+			// Triangle 1
+			st->add_index(current_row + x);
+			st->add_index(current_row + x + 1);
+			st->add_index(next_row + x);
+
+			// Triangle 2
+			st->add_index(next_row + x);
+			st->add_index(current_row + x + 1);
+			st->add_index(next_row + x + 1);
+		}
+	}
+
+	st->generate_normals();
+
+	mesh = st->commit();
+	set_mesh(mesh);
+	set_material_override(landscape_material);
+
+	// Collision
+	create_collision();
+
+
+
+}
+
+void Landscape::create_collision() {
+	// Get children
+	TypedArray<Node> children = get_children();
+
+	// loop backwards and remove
+	for (int i = children.size() - 1; i >= 0; i--) {
+		Node* child = Object::cast_to<Node>(children[i]);
+
+		if (child != nullptr && child->is_class("StaticBody3D")) {
+			remove_child(child);
+			child->queue_free();
+		}
+	}
+	create_trimesh_collision();
+
+}
+
+void Landscape::_on_noise_changed(){
+	generate_landscape();
+}
+
+Vector2 Landscape::get_landscape_size(){
+	return p_landscape_size;
+}
+
+void Landscape::set_landscape_size(const Vector2& p_size){
+	p_landscape_size = p_size;
+	generate_landscape();
+
+}
+
+float Landscape::get_noise_scale(){
+	return p_noise_scale;
+}
+
+void Landscape::set_noise_scale(const float p_scale){
+	p_noise_scale = p_scale;
+	generate_landscape();
+}
+
+float Landscape::get_spacing(){
+	return p_spacing;
+}
+
+void Landscape::set_spacing(const float p_space){
+	p_spacing=p_space;
+	generate_landscape();
+}
+
+Ref<ShaderMaterial> Landscape::get_landscape_material(){
+	return landscape_material;
+}
+
+void Landscape::set_landscape_material(const Ref<ShaderMaterial>&  p_material){
+	landscape_material = p_material;
+	generate_landscape();
+}
+
+
+Ref<FastNoiseLite>  Landscape::get_landscape_noise(){
+	return noise_instance;
+}
+
+void Landscape::set_landscape_noise(const Ref<FastNoiseLite>& p_noise){
+	if (noise_instance.is_valid() && noise_instance->is_connected("changed", Callable(this, "_on_noise_changed"))){
+		noise_instance->disconnect("changed", Callable(this, "_on_noise_changed"));
+	}
+	noise_instance = p_noise;
+
+	if(noise_instance.is_valid()){
+		noise_instance->connect("changed", Callable(this, "_on_noise_changed"));
+	}
+	generate_landscape();
+}
+
+Ref<Texture2D> Landscape::get_landscape_texture(){
+	return landscape_texture;
+}
+
+void Landscape::set_landscape_texture(const Ref<Texture2D>& p_texture){
+	landscape_texture = p_texture;
+	generate_landscape();
+}
+
+bool Landscape::get_use_texture(){
+	return p_use_texture;
+}
+
+void Landscape::set_use_texture(const bool p_set){
+	p_use_texture = p_set;
+	generate_landscape();
+}
+

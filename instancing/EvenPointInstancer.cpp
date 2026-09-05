@@ -1,6 +1,14 @@
 
+#include "core/math/vector3.h"
 #include "core/object/class_db.h"
+#include "core/object/ref_counted.h"
+#include "core/string/print_string.h"
+#include "core/variant/dictionary.h"
 #include "scene/resources/3d/primitive_meshes.h"
+#include "scene/resources/3d/world_3d.h"
+#include "servers/physics_3d/direct_states/physics_direct_space_state_3d.h"
+#include "servers/physics_3d/physics_server_3d_types.h"
+#include <vector>
 #include "EvenPointInstancer.h"
 #include "PoissonDiskSample.h"
 
@@ -95,13 +103,13 @@ void EvenPointInstancer::instance(){
 	PoissonOutput output = {outputPoints};
 
 	GeneratePoissonSampling(input,output);
-	multi_mesh->set_custom_aabb(AABB(Vector3(0,0,0), Vector3(100, 100, 100)));;
+	multi_mesh->set_custom_aabb(AABB(Vector3(0,0,0), Vector3(50, 50, 50)));;
 	int actual_count = std::min(count, (int)output.points.size());
 	multi_mesh->set_instance_count(actual_count);
 
 	for (int i = 0; i < actual_count; i++){
 		Vector2 point = output.points[i];
-		Vector3 pos = {point.x, 0, point.y};
+		Vector3 pos = {point.x, 10.0, point.y};
 
 		Transform3D instance_transform;
 
@@ -116,19 +124,42 @@ void EvenPointInstancer::instance(){
 	// think about occlusions
 }
 
-void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points){
-	if (!target) return;
+void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vector3>& points){
+	if (!target) {return;}
 
-	Ref<Mesh> mesh = target->get_mesh();
-	if(mesh.is_null()) return;
+	Ref<World3D> world = get_world_3d();
+	if (world.is_null()) {return;}
 
-	//PackedVector3Array faces = mesh->get_faces();
+	PhysicsDirectSpaceState3D* space_state = world->get_direct_space_state();
+	if(!space_state){
+		print_error("Phsyics stat unavailable");
+	}
 
-	//Ref<TriangleMesh> surface = mesh->generate_triangle_mesh();
-	//surface.instantiate();
+	for(int i = 0; i < points.size(); i++){
+		Vector3 origin = points[i];
+		Vector3 dest = origin + Vector3(0.0, -100.0, 0.0);
 
-	//surface.intersect_ray();
+		PhysicsServer3DTypes::RayParameters params;
+		params.from = origin;
+		params.to = dest;
+		params.collide_with_areas = true;
+		params.collide_with_bodies = true;
+
+		PhysicsServer3DTypes::RayResult results = {};
+
+		if(space_state->intersect_ray(params, results)){
+			Vector3 hit_point = results.position;
+			print_line("Point : ", i , "pos: ", hit_point);
+			Transform3D instance_transform;
+			instance_transform.origin = hit_point;
+			multi_mesh->set_instance_transform(i, instance_transform);
+
+			}else{
+				print_line("No hit");
+			}
+	}
 }
+
 
 
 Ref<Mesh> EvenPointInstancer::get_instance_mesh(){

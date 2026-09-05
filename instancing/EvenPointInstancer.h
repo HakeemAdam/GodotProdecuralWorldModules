@@ -1,11 +1,13 @@
 #pragma once
 
 #include "GridOps.h"
+#include "core/math/vector3.h"
 #include "core/object/object.h"
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/multimesh_instance_3d.h"
 #include "scene/resources/mesh.h"
+#include <vector>
 
 
 
@@ -29,9 +31,9 @@ class EvenPointInstancer : public MultiMeshInstance3D{
 		// add parms for bounds and min dist
 		// add mesh for ray casting
 		// Rename class
-		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points);
+		void raycastPoints(MeshInstance3D* target, std::vector<Vector3>& points);
 
-		PackedVector3Array pointPositions;
+		std::vector<Vector3> pointPositions;
 
 	protected:
 		static void _bind_methods();

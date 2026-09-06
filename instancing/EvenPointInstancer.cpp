@@ -1,13 +1,18 @@
 
+#include "core/math/aabb.h"
+#include "core/math/random_number_generator.h"
 #include "core/math/vector3.h"
 #include "core/object/class_db.h"
+#include "core/object/object.h"
 #include "core/object/ref_counted.h"
 #include "core/string/print_string.h"
 #include "core/variant/dictionary.h"
+#include "core/variant/variant.h"
 #include "scene/resources/3d/primitive_meshes.h"
 #include "scene/resources/3d/world_3d.h"
 #include "servers/physics_3d/direct_states/physics_direct_space_state_3d.h"
 #include "servers/physics_3d/physics_server_3d_types.h"
+#include <cstdlib>
 #include <vector>
 #include "EvenPointInstancer.h"
 #include "PoissonDiskSample.h"
@@ -32,6 +37,12 @@ void EvenPointInstancer::_bind_methods(){
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use target Mesh"), "set_useTargetMesh", "get_useTargetMesh");
 
+	ClassDB::bind_method(D_METHOD("get_randomize"), &EvenPointInstancer::get_randomize);
+
+	ClassDB::bind_method(D_METHOD("set_randomize", "p_option"), &EvenPointInstancer::set_randomize);
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
+
 	ClassDB::bind_method(D_METHOD("set_count", "p_count"), &EvenPointInstancer::set_count);
 
 	ClassDB::bind_method(D_METHOD("get_count"), &EvenPointInstancer::get_count);
@@ -44,6 +55,17 @@ void EvenPointInstancer::_bind_methods(){
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "min dist"), "set_minDist", "get_minDist");
 
+	ClassDB::bind_method(D_METHOD("set_range_min", "p_range"), &EvenPointInstancer::set_range_min);
+
+	ClassDB::bind_method(D_METHOD("get_range_min"), &EvenPointInstancer::get_range_min);
+
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "range min"), "set_range_min", "get_range_min");
+
+	ClassDB::bind_method(D_METHOD("set_range_max", "p_range"), &EvenPointInstancer::set_range_max);
+
+	ClassDB::bind_method(D_METHOD("get_range_max"), &EvenPointInstancer::get_range_max);
+
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "range max"), "set_range_max", "get_range_max");
 
 }
 
@@ -51,8 +73,12 @@ EvenPointInstancer::EvenPointInstancer(){
 	count = 10;
 	minDist = 2.0;
 	maxAttempts = 30;
-	bounds = {0,0, 100, 100};
+	bounds = {0,0, 25, 25};
 	pointPositions = {};
+	useTargetMesh = false;
+	randomize = false;
+	range_min = {0.0, 0.0, 0.0};
+	range_max = {25.0, 25.0, 25.0};
 }
 
 
@@ -85,11 +111,10 @@ void EvenPointInstancer::ready(){
 		multi_mesh->set_mesh(instance_mesh);
 
 	}
-
     	multi_mesh->set_mesh(instance_mesh);
     	instance();
-
 }
+
 
 void EvenPointInstancer::instance(){
 
@@ -99,17 +124,29 @@ void EvenPointInstancer::instance(){
 	std::vector<Vector2> outputPoints;
 	pointPositions.clear();
 
+	bounds = {range_min.x, range_min.z, range_max.x, range_max.z};
+
 	PoissonInput input = {bounds, minDist, maxAttempts};
 	PoissonOutput output = {outputPoints};
 
 	GeneratePoissonSampling(input,output);
-	multi_mesh->set_custom_aabb(AABB(Vector3(0,0,0), Vector3(50, 50, 50)));;
+	multi_mesh->set_custom_aabb(AABB(range_min, range_max));
 	int actual_count = std::min(count, (int)output.points.size());
 	multi_mesh->set_instance_count(actual_count);
 
+	// Add pure random
+	Ref<RandomNumberGenerator> rng;
+	rng.instantiate();
+
 	for (int i = 0; i < actual_count; i++){
 		Vector2 point = output.points[i];
-		Vector3 pos = {point.x, 10.0, point.y};
+		Vector3 pos;
+
+		if(!randomize){
+			pos = {point.x, range_max.y, point.y};
+		}else{
+			pos = {point.x, rng->randf_range(range_min.y, range_max.y), point.y};
+		}
 
 		Transform3D instance_transform;
 
@@ -118,7 +155,11 @@ void EvenPointInstancer::instance(){
 		pointPositions.push_back(pos);
 	}
 
-	raycastPoints(target_mesh, pointPositions);
+	if (useTargetMesh) {
+		raycastPoints(target_mesh, pointPositions);
+	}
+	//raycastPoints(target_mesh, pointPositions);
+
 
 	// ray cast points onto surface
 	// think about occlusions
@@ -135,9 +176,13 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 		print_error("Phsyics stat unavailable");
 	}
 
+	float padding = 50.0f;
+	float start_y = range_max.y + padding;
+	float ray_length = (range_max.y - range_min.y) + padding + 100.0f;
+
 	for(int i = 0; i < points.size(); i++){
-		Vector3 origin = points[i];
-		Vector3 dest = origin + Vector3(0.0, -100.0, 0.0);
+		Vector3 origin = to_global(Vector3(points[i].x, start_y, points[i].z));
+		Vector3 dest = origin + Vector3(0.0, -ray_length, 0.0);
 
 		PhysicsServer3DTypes::RayParameters params;
 		params.from = origin;
@@ -147,15 +192,31 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 
 		PhysicsServer3DTypes::RayResult results = {};
 
+		// Align points with normals
+
 		if(space_state->intersect_ray(params, results)){
 			Vector3 hit_point = results.position;
 			print_line("Point : ", i , "pos: ", hit_point);
+
+			Vector3 local_pos = to_local(hit_point);
+			points[i] = local_pos;
+
+			Vector3 up = results.normal;
+			Vector3 tmp = (abs(up.dot(Vector3(0,1,0))) > 0.99f) ? Vector3(0, 0, -1) : Vector3(0, 1, 0);
+			Vector3 right = tmp.cross(up).normalized();
+			Vector3 forward = up.cross(right).normalized();
+
 			Transform3D instance_transform;
-			instance_transform.origin = hit_point;
+			instance_transform.origin = local_pos;
+			instance_transform.basis.set_column(0, right);
+			instance_transform.basis.set_column(1, up);
+			instance_transform.basis.set_column(2, forward);
+
+			//multi_mesh->set_custom_aabb(AABB());
 			multi_mesh->set_instance_transform(i, instance_transform);
 
 			}else{
-				print_line("No hit");
+				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
 			}
 	}
 }
@@ -180,6 +241,7 @@ MeshInstance3D* EvenPointInstancer::get_target_mesh(){
 
 void EvenPointInstancer::set_target_mesh(MeshInstance3D* p_mesh){
 	target_mesh = p_mesh;
+	instance();
 }
 
 bool EvenPointInstancer::get_useTargetMesh(){
@@ -188,6 +250,16 @@ bool EvenPointInstancer::get_useTargetMesh(){
 
 void EvenPointInstancer::set_useTargetMesh(bool p_option){
 	useTargetMesh = p_option;
+	instance();
+}
+
+bool EvenPointInstancer::get_randomize(){
+	return randomize;
+}
+
+void EvenPointInstancer::set_randomize(bool p_option){
+	randomize = p_option;
+	instance();
 }
 
 int EvenPointInstancer::get_count(){
@@ -208,4 +280,22 @@ void EvenPointInstancer::set_minDist(float p_minDist){
 	instance();
 }
 
+
+Vector3 EvenPointInstancer::get_range_min(){
+	return range_min;
+}
+
+void EvenPointInstancer::set_range_min(Vector3 p_range){
+	range_min = p_range;
+	instance();
+}
+
+Vector3 EvenPointInstancer::get_range_max(){
+	return range_max;
+}
+
+void EvenPointInstancer::set_range_max(Vector3 p_range){
+	range_max = p_range;
+	instance();
+}
 

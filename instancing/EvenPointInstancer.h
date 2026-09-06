@@ -27,13 +27,17 @@ class EvenPointInstancer : public MultiMeshInstance3D{
 
 		MeshInstance3D* target_mesh = nullptr;
 		bool useTargetMesh;
+		bool randomize;
 
 		// add parms for bounds and min dist
 		// add mesh for ray casting
 		// Rename class
+		// replace std vector with packedarray or engine equivalent
 		void raycastPoints(MeshInstance3D* target, std::vector<Vector3>& points);
 
 		std::vector<Vector3> pointPositions;
+		Vector3 range_min;
+		Vector3 range_max;
 
 	protected:
 		static void _bind_methods();
@@ -56,10 +60,19 @@ class EvenPointInstancer : public MultiMeshInstance3D{
 		bool get_useTargetMesh();
 		void set_useTargetMesh(bool p_option);
 
+		bool get_randomize();
+		void set_randomize(bool p_option);
+
 		int get_count();
 		void set_count(int p_count);
 
 		float get_minDist();
 		void set_minDist(float p_minDist);
+
+		Vector3 get_range_min();
+		void set_range_min(Vector3 p_range);
+
+		Vector3 get_range_max();
+		void set_range_max(Vector3 p_range);
 };
 

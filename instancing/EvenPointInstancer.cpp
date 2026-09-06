@@ -1,5 +1,6 @@
 
 #include "core/math/aabb.h"
+#include "core/math/basis.h"
 #include "core/math/random_number_generator.h"
 #include "core/math/vector3.h"
 #include "core/object/class_db.h"
@@ -158,10 +159,6 @@ void EvenPointInstancer::instance(){
 	if (useTargetMesh) {
 		raycastPoints(target_mesh, pointPositions);
 	}
-	//raycastPoints(target_mesh, pointPositions);
-
-
-	// ray cast points onto surface
 	// think about occlusions
 }
 
@@ -179,6 +176,8 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 	float padding = 50.0f;
 	float start_y = range_max.y + padding;
 	float ray_length = (range_max.y - range_min.y) + padding + 100.0f;
+
+	Basis go = get_global_transform().basis.inverse();
 
 	for(int i = 0; i < points.size(); i++){
 		Vector3 origin = to_global(Vector3(points[i].x, start_y, points[i].z));
@@ -201,10 +200,10 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 			Vector3 local_pos = to_local(hit_point);
 			points[i] = local_pos;
 
-			Vector3 up = results.normal;
+			Vector3 up = go.xform(results.normal).normalized();
 			Vector3 tmp = (abs(up.dot(Vector3(0,1,0))) > 0.99f) ? Vector3(0, 0, -1) : Vector3(0, 1, 0);
 			Vector3 right = tmp.cross(up).normalized();
-			Vector3 forward = up.cross(right).normalized();
+			Vector3 forward = right.cross(up).normalized();
 
 			Transform3D instance_transform;
 			instance_transform.origin = local_pos;
@@ -212,7 +211,6 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 			instance_transform.basis.set_column(1, up);
 			instance_transform.basis.set_column(2, forward);
 
-			//multi_mesh->set_custom_aabb(AABB());
 			multi_mesh->set_instance_transform(i, instance_transform);
 
 			}else{

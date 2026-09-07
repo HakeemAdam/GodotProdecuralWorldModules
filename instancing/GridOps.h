@@ -1,8 +1,7 @@
 #pragma once
 
 #include "core/math/vector2.h"
-#include <cmath>
-#include <vector>
+#include "core/variant/variant.h"
 
 // bounds struct
 struct Bounds2D {
@@ -21,8 +20,8 @@ inline GridInfo2D createGrid(Bounds2D bounds, float cellSize) {
     GridInfo2D grid{};
     grid.cellSize=cellSize;
     grid.bounds = bounds;
-    grid.numCols = std::ceil((bounds.maxX-bounds.minX)/cellSize);
-    grid.numRows =std::ceil((bounds.maxY-bounds.minY)/cellSize);
+    grid.numCols = ceil((bounds.maxX-bounds.minX)/cellSize);
+    grid.numRows = ceil((bounds.maxY-bounds.minY)/cellSize);
     return grid;
 }
 
@@ -33,8 +32,8 @@ inline int toFlat2D(int col, int row, int numCols) {
 
 // posToCell - convert pos x, y  to col, row
 inline void posToCell(float posX, float posY, const GridInfo2D& grid, int& outCol, int& outRow) {
-    outCol = std::floor((posX - grid.bounds.minX) / grid.cellSize);
-    outRow = std::floor((posY - grid.bounds.minY) / grid.cellSize);
+    outCol = floor((posX - grid.bounds.minX) / grid.cellSize);
+    outRow = floor((posY - grid.bounds.minY) / grid.cellSize);
 }
 
 // posToFlat, convert x,y pos to flat idx
@@ -63,7 +62,7 @@ inline Vector2 cellToPos(int flat, const GridInfo2D& grid) {
 
 // struct - cell = indices, initialized to -1, meaning  not occupied, when occupied, holds the index [0,1,2,3,...]
 struct SparseGrid2D {
-    std::vector<int> cells; // the list of indices/cells
+    PackedInt32Array cells; // the list of indices/cells
     GridInfo2D info;        // the grid, storing info
 };
 
@@ -72,15 +71,18 @@ inline SparseGrid2D createSparseGrid(Bounds2D bounds, float cellSize) {
     SparseGrid2D grid ={};
     grid.info = createGrid(bounds,cellSize); // initialize grid
     int gridSize = grid.info.numCols * grid.info.numRows;
-    grid.cells.resize(gridSize, -1);  //resize cel to match the spaces in the grid, and init to -1, not occupied
-    return grid;
+    grid.cells.resize(gridSize);//resize cel to match the spaces in the grid, and init to -1, not occupied
+    grid.cells.fill(-1);
+	return grid;
 }
 
 // insert a point - x,y pos and index
 inline bool insertPointToSparseGrid(SparseGrid2D& grid,float posX, float posY, int pointIndex) {
     int idx = posToFlat(posX,posY,grid.info);
-    if (grid.cells[idx] != -1) return false; // not empty
-    grid.cells[idx] = pointIndex; // pass the index to the list of cell
+    if (grid.cells[idx] != -1){
+		return false; // not empty
+		}
+    grid.cells.set(idx, pointIndex); // pass the index to the list of cell
     return true;
 
 }
@@ -95,19 +97,19 @@ inline int querySparseGrid(const SparseGrid2D& grid, float posX, float posY) {
 //clear grid, set all element to -1
 
 inline void clearSparseGrid(SparseGrid2D& grid) {
-    for ( int& cell: grid.cells) cell=-1;
+    for ( int& cell: grid.cells) {cell=-1;}
 }
 
 // get 8X8 neighbours, based on col and row
-inline std::vector<int> queryGridNeighbors(int col, int row, int numCols, int numRows) {
-    std::vector<int> neighbourCells;
+inline PackedInt32Array queryGridNeighbors(int col, int row, int numCols, int numRows) {
+    PackedInt32Array neighbourCells;
     for ( int dy = -1; dy <= 1; dy ++) {
         for ( int dx = -1; dx <= 1; dx++) {
             int nx = dx +col;
             int ny = dy + row;
 
-            if ( nx < 0 || nx >= numCols) continue;
-            if ( ny < 0 || ny >= numRows) continue;
+            if ( nx < 0 || nx >= numCols) {continue;}
+            if ( ny < 0 || ny >= numRows) {continue;}
 
             int idx = nx + ny * numCols;
             neighbourCells.push_back(idx);
@@ -118,12 +120,12 @@ inline std::vector<int> queryGridNeighbors(int col, int row, int numCols, int nu
 
 
 // querySpareseGridNeighboorhood, given and input x,y position, retrun all the neigbors
-inline std::vector<int> querySparseGridNeighborHood(const SparseGrid2D& grid, float posX, float posY) {
+inline PackedInt32Array querySparseGridNeighborHood(const SparseGrid2D& grid, float posX, float posY) {
     int col, row;
     posToCell(posX,posY, grid.info, col, row);
 
-    std::vector<int> Neighbourhood = queryGridNeighbors(col, row, grid.info.numCols, grid.info.numRows);
-    std::vector<int> result;
+    PackedInt32Array Neighbourhood = queryGridNeighbors(col, row, grid.info.numCols, grid.info.numRows);
+    PackedInt32Array result;
     for (int cellIdx: Neighbourhood) {
         result.push_back(grid.cells[cellIdx]);
     }
@@ -133,7 +135,7 @@ inline std::vector<int> querySparseGridNeighborHood(const SparseGrid2D& grid, fl
 // DenseGrid
 
 struct DenseGrid2D {
-    std::vector<std::vector<int>> cells;
+    Vector<PackedInt32Array>cells;
     GridInfo2D info;
 };
 
@@ -147,26 +149,31 @@ inline DenseGrid2D createDenseGrid(Bounds2D bounds, float cellSize) {
 
 inline void insertPointToDenseGrid(DenseGrid2D& grid,float posX, float posY, int pointIndex) {
     int idx = posToFlat(posX,posY,grid.info);
-    grid.cells[idx].push_back(pointIndex);
+
+	PackedInt32Array cell_array = grid.cells[idx];
+	cell_array.push_back(pointIndex);
+	grid.cells.set(idx, cell_array);
+
+    //grid.cells[idx].push_back(pointIndex);
 }
 
-inline std::vector<int> queryDenseGrid(const DenseGrid2D& grid, float posX, float posY) {
+inline PackedInt32Array queryDenseGrid(const DenseGrid2D& grid, float posX, float posY) {
     int idx = posToFlat(posX, posY, grid.info);
     return grid.cells[idx];
 }
 
 inline void clearDenseGrid(DenseGrid2D& grid) {
-    for (std::vector<int>& cell: grid.cells) {
+    for (PackedInt32Array& cell: grid.cells) {
         cell.clear();
     }
 }
 
-inline std::vector<int> queryDenseGridNeighborHood(const DenseGrid2D& grid, float posX, float posY) {
+inline PackedInt32Array queryDenseGridNeighborHood(const DenseGrid2D& grid, float posX, float posY) {
     int col, row;
     posToCell(posX,posY,grid.info,col, row);
-    std::vector<int> Neighbourhood =queryGridNeighbors(col, row, grid.info.numCols, grid.info.numRows);
+    PackedInt32Array Neighbourhood =queryGridNeighbors(col, row, grid.info.numCols, grid.info.numRows);
 
-    std::vector<int> result;
+    PackedInt32Array result;
     for ( int cellIdx: Neighbourhood) {
         for ( int pointIdx: grid.cells[cellIdx]) {
             result.push_back(pointIdx);
@@ -175,11 +182,11 @@ inline std::vector<int> queryDenseGridNeighborHood(const DenseGrid2D& grid, floa
     return result;
 }
 
-inline std::vector<int> queryDenseGridNeighborHoodRadius(const DenseGrid2D& grid, const std::vector<Vector2>& points, float queryX, float queryY, float radius) {
+inline PackedInt32Array queryDenseGridNeighborHoodRadius(const DenseGrid2D& grid, const PackedVector2Array& points, float queryX, float queryY, float radius) {
     // find all points near target positions
-    std::vector<int> candidates = queryDenseGridNeighborHood(grid, queryX, queryY);
+    PackedInt32Array candidates = queryDenseGridNeighborHood(grid, queryX, queryY);
 
-    std::vector<int> result;
+    PackedInt32Array result;
     // loop through candidate indices
     for ( int pointIdx: candidates ) {
         // check the distance between the target, input, and all point in the candidates array by index

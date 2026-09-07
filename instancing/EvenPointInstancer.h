@@ -3,11 +3,11 @@
 #include "GridOps.h"
 #include "core/math/vector3.h"
 #include "core/object/object.h"
+#include "core/variant/typed_array.h"
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/multimesh_instance_3d.h"
 #include "scene/resources/mesh.h"
-#include <vector>
 
 
 
@@ -29,13 +29,12 @@ class EvenPointInstancer : public MultiMeshInstance3D{
 		bool useTargetMesh;
 		bool randomize;
 
-		// add parms for bounds and min dist
-		// add mesh for ray casting
 		// Rename class
 		// replace std vector with packedarray or engine equivalent
-		void raycastPoints(MeshInstance3D* target, std::vector<Vector3>& points);
+		// Add support for arrays
+		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points);
 
-		std::vector<Vector3> pointPositions;
+		PackedVector3Array pointPositions;
 		Vector3 range_min;
 		Vector3 range_max;
 

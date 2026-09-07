@@ -14,7 +14,6 @@
 #include "servers/physics_3d/direct_states/physics_direct_space_state_3d.h"
 #include "servers/physics_3d/physics_server_3d_types.h"
 #include <cstdlib>
-#include <vector>
 #include "EvenPointInstancer.h"
 #include "PoissonDiskSample.h"
 
@@ -122,17 +121,17 @@ void EvenPointInstancer::instance(){
 	if (!multi_mesh.is_valid() || !instance_mesh.is_valid()) {
 		return;
 	}
-	std::vector<Vector2> outputPoints;
+	PackedVector2Array outputPoints;
 	pointPositions.clear();
 
 	bounds = {range_min.x, range_min.z, range_max.x, range_max.z};
 
 	PoissonInput input = {bounds, minDist, maxAttempts};
-	PoissonOutput output = {outputPoints};
+	PoissonOutput output;
 
 	GeneratePoissonSampling(input,output);
 	multi_mesh->set_custom_aabb(AABB(range_min, range_max));
-	int actual_count = std::min(count, (int)output.points.size());
+	int actual_count = std::min(count, static_cast<int>(output.points.size()));
 	multi_mesh->set_instance_count(actual_count);
 
 	// Add pure random
@@ -162,7 +161,7 @@ void EvenPointInstancer::instance(){
 	// think about occlusions
 }
 
-void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vector3>& points){
+void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points){
 	if (!target) {return;}
 
 	Ref<World3D> world = get_world_3d();
@@ -198,7 +197,7 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, std::vector<Vecto
 			print_line("Point : ", i , "pos: ", hit_point);
 
 			Vector3 local_pos = to_local(hit_point);
-			points[i] = local_pos;
+			points.set(i, local_pos);
 
 			Vector3 up = go.xform(results.normal).normalized();
 			Vector3 tmp = (abs(up.dot(Vector3(0,1,0))) > 0.99f) ? Vector3(0, 0, -1) : Vector3(0, 1, 0);

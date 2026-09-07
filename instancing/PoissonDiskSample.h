@@ -4,7 +4,8 @@
 #include "GridOps.h"
 #include "core/math/random_number_generator.h"
 #include "core/math/vector2.h"
-#include <cstddef>
+#include "core/variant/variant.h"
+//#include <cstddef>
 
 struct PoissonInput{
 	Bounds2D bounds;
@@ -13,7 +14,7 @@ struct PoissonInput{
 };
 
 struct PoissonOutput{
-	std::vector<Vector2> points;
+	PackedVector2Array points;
 };
 
 
@@ -22,8 +23,8 @@ inline void GeneratePoissonSampling(const PoissonInput& input, PoissonOutput& ou
 
 	// Create grid
 	SparseGrid2D grid = createSparseGrid(input.bounds, cellSize);
-	std::vector<Vector2> points;
-	std::vector<int> active;
+	PackedVector2Array points;
+	PackedInt32Array active;
 
 	// Add first point randomly and make it the active point
 	Ref<RandomNumberGenerator> rng;
@@ -38,9 +39,9 @@ inline void GeneratePoissonSampling(const PoissonInput& input, PoissonOutput& ou
 	active.push_back(0);
 	insertPointToSparseGrid(grid, firstPoint.x, firstPoint.y, 0);
 
-	while(!active.empty()){
+	while(!active.is_empty()){
 		// While active poinst are not empty, pick a random point and make it active
-		int activeIdx = std::floor(rng->randf_range(0, active.size()));
+		int activeIdx = floor(rng->randf_range(0, active.size()));
 		int pointIdx = active[activeIdx];
 		Vector2 pos = points[pointIdx];
 		bool found = false;
@@ -52,17 +53,17 @@ inline void GeneratePoissonSampling(const PoissonInput& input, PoissonOutput& ou
 
 			// Pick a candidate position for the point
 			Vector2 candidate;
-			candidate.x = pos.x - std::cos(angle) * dist;
-			candidate.y = pos.y - std::sin(angle) * dist;
+			candidate.x = pos.x - cos(angle) * dist;
+			candidate.y = pos.y - sin(angle) * dist;
 
 			// Make sure the candidate is within the bounds
-			if(candidate.x < input.bounds.minX || candidate. x >= input.bounds.maxX || candidate.y < input.bounds.minY || candidate.y >= input.bounds.maxY) continue;
+			if(candidate.x < input.bounds.minX || candidate. x >= input.bounds.maxX || candidate.y < input.bounds.minY || candidate.y >= input.bounds.maxY) {continue;}
 
 			// Get the neighbor cells around the candidate
 			bool valid = true;
-			std::vector<int> neighbours = querySparseGridNeighborHood(grid, candidate.x, candidate.y);
+			PackedInt32Array neighbours = querySparseGridNeighborHood(grid, candidate.x, candidate.y);
 
-			for(size_t cellIdx=0; cellIdx < neighbours.size(); cellIdx ++ ){
+			for(int cellIdx=0; cellIdx < neighbours.size(); cellIdx ++ ){
 				// Ensure candidate is withing the radius
 				if (neighbours[cellIdx] != -1){
 					Vector2 neighbor = points[neighbours[cellIdx]];
@@ -88,8 +89,9 @@ inline void GeneratePoissonSampling(const PoissonInput& input, PoissonOutput& ou
 
 		// if not found, select and active point
 		if (!found){
-			active[activeIdx]=active.back();
-			active.pop_back();
+			int last = active[active.size() - 1];
+			active.set(activeIdx, last);
+			active.resize(active.size() - 1);
 		}
 	}
 

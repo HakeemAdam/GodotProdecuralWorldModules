@@ -3,40 +3,47 @@
 #include "GridOps.h"
 #include "core/math/vector3.h"
 #include "core/object/object.h"
+#include "core/variant/array.h"
 #include "core/variant/typed_array.h"
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
-#include "scene/3d/multimesh_instance_3d.h"
+#include "scene/3d/node_3d.h"
 #include "scene/resources/mesh.h"
+#include "scene/resources/multimesh.h"
 
 
 
-class EvenPointInstancer : public MultiMeshInstance3D{
-	GDCLASS(EvenPointInstancer, MultiMeshInstance3D);
+class EvenPointInstancer : public Node3D{
+	GDCLASS(EvenPointInstancer, Node3D);
 
 	private:
 		float minDist;
 		int maxAttempts;
 		Bounds2D bounds;
 
-		Ref<MultiMesh> multi_mesh;
-
-		Ref<Mesh> instance_mesh;
+		TypedArray<Mesh> meshes;
 
 		int count;
 
 		MeshInstance3D* target_mesh = nullptr;
 		bool useTargetMesh;
 		bool randomize;
+		int actual_count;
 
 		// Rename class
-		// replace std vector with packedarray or engine equivalent
-		// Add support for arrays
-		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points);
+
+		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals);
 
 		PackedVector3Array pointPositions;
+		PackedVector3Array pointNormals;
 		Vector3 range_min;
 		Vector3 range_max;
+
+		TypedArray<MultiMesh> containers;
+
+		void calculate_positions();
+
+		void manage_multis();
 
 	protected:
 		static void _bind_methods();
@@ -73,5 +80,8 @@ class EvenPointInstancer : public MultiMeshInstance3D{
 
 		Vector3 get_range_max();
 		void set_range_max(Vector3 p_range);
+
+		TypedArray<Mesh> get_meshes();
+		void set_meshes(Array p_meshes);
 };
 

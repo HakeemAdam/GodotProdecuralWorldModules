@@ -1,16 +1,24 @@
 
+#include "core/config/engine.h"
 #include "core/math/aabb.h"
 #include "core/math/basis.h"
 #include "core/math/random_number_generator.h"
+#include "core/math/transform_3d.h"
 #include "core/math/vector3.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
+#include "core/object/property_info.h"
 #include "core/object/ref_counted.h"
+#include "core/os/memory.h"
 #include "core/string/print_string.h"
 #include "core/variant/dictionary.h"
+#include "core/variant/typed_array.h"
 #include "core/variant/variant.h"
-#include "scene/resources/3d/primitive_meshes.h"
+#include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/multimesh_instance_3d.h"
 #include "scene/resources/3d/world_3d.h"
+#include "scene/resources/mesh.h"
+#include "scene/resources/multimesh.h"
 #include "servers/physics_3d/direct_states/physics_direct_space_state_3d.h"
 #include "servers/physics_3d/physics_server_3d_types.h"
 #include <cstdlib>
@@ -19,11 +27,11 @@
 
 void EvenPointInstancer::_bind_methods(){
 
-	ClassDB::bind_method(D_METHOD("get_instance_mesh"), &EvenPointInstancer::get_instance_mesh);
+	/*ClassDB::bind_method(D_METHOD("get_instance_mesh"), &EvenPointInstancer::get_instance_mesh);
 
 	ClassDB::bind_method(D_METHOD("set_instance_mesh", "p_mesh"), &EvenPointInstancer::set_instance_mesh);
 
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "instance_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh", PROPERTY_USAGE_DEFAULT), "set_instance_mesh","get_instance_mesh");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "instance_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh", PROPERTY_USAGE_DEFAULT), "set_instance_mesh","get_instance_mesh");*/
 
 	ClassDB::bind_method(D_METHOD("get_target_mesh"), &EvenPointInstancer::get_target_mesh);
 
@@ -67,10 +75,17 @@ void EvenPointInstancer::_bind_methods(){
 
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "range max"), "set_range_max", "get_range_max");
 
+	ClassDB::bind_method(D_METHOD("set_meshes", "p_mehses"), &EvenPointInstancer::set_meshes);
+
+	ClassDB::bind_method(D_METHOD("get_meshes"), &EvenPointInstancer::get_meshes);
+
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "meshes", PROPERTY_HINT_TYPE_STRING, "Mesh"), "set_meshes", "get_meshes");
+
 }
 
 EvenPointInstancer::EvenPointInstancer(){
 	count = 10;
+	actual_count = 0;
 	minDist = 2.0;
 	maxAttempts = 30;
 	bounds = {0,0, 25, 25};
@@ -79,6 +94,9 @@ EvenPointInstancer::EvenPointInstancer(){
 	randomize = false;
 	range_min = {0.0, 0.0, 0.0};
 	range_max = {25.0, 25.0, 25.0};
+
+	meshes = TypedArray<Mesh>();
+	containers = TypedArray<MultiMesh>();
 }
 
 
@@ -97,32 +115,14 @@ void EvenPointInstancer::_notification(int p_what){
 
 void EvenPointInstancer::ready(){
 
-	if (!multi_mesh.is_valid()) {
-        	multi_mesh.instantiate();
-        	multi_mesh->set_transform_format(MultiMesh::TRANSFORM_3D);
-        	set_multimesh(multi_mesh);
-    	}
 
-
-	if(!instance_mesh.is_valid()){
-		Ref<BoxMesh> box;
-		box.instantiate();
-		instance_mesh = box;
-		multi_mesh->set_mesh(instance_mesh);
-
-	}
-    	multi_mesh->set_mesh(instance_mesh);
-    	instance();
+    instance();
 }
 
-
-void EvenPointInstancer::instance(){
-
-	if (!multi_mesh.is_valid() || !instance_mesh.is_valid()) {
-		return;
-	}
-	PackedVector2Array outputPoints;
+void EvenPointInstancer::calculate_positions(){
+	actual_count = 0;
 	pointPositions.clear();
+	pointNormals.clear();
 
 	bounds = {range_min.x, range_min.z, range_max.x, range_max.z};
 
@@ -130,13 +130,11 @@ void EvenPointInstancer::instance(){
 	PoissonOutput output;
 
 	GeneratePoissonSampling(input,output);
-	multi_mesh->set_custom_aabb(AABB(range_min, range_max));
-	int actual_count = std::min(count, static_cast<int>(output.points.size()));
-	multi_mesh->set_instance_count(actual_count);
 
-	// Add pure random
 	Ref<RandomNumberGenerator> rng;
 	rng.instantiate();
+
+	actual_count = std::min(count, static_cast<int>(output.points.size()));
 
 	for (int i = 0; i < actual_count; i++){
 		Vector2 point = output.points[i];
@@ -147,22 +145,93 @@ void EvenPointInstancer::instance(){
 		}else{
 			pos = {point.x, rng->randf_range(range_min.y, range_max.y), point.y};
 		}
-
-		Transform3D instance_transform;
-
-		instance_transform.origin = pos;
-		multi_mesh->set_instance_transform(i, instance_transform);
 		pointPositions.push_back(pos);
+		pointNormals.push_back(Vector3(0,1,0));
 	}
 
 	if (useTargetMesh) {
-		raycastPoints(target_mesh, pointPositions);
+		raycastPoints(target_mesh, pointPositions, pointNormals);
 	}
+}
+
+void EvenPointInstancer::manage_multis(){
+	containers.clear();
+
+	if (meshes.is_empty()) {
+		return;
+	}
+
+	for (int i=0; i < meshes.size(); i++) {
+		Ref<MultiMesh> mm;
+		Ref<Mesh> raw_mesh = meshes[i];
+
+		if (raw_mesh.is_null()) {
+			continue;
+		}
+		mm.instantiate();
+
+		mm->set_mesh(raw_mesh);
+		mm->set_transform_format(MultiMesh::TRANSFORM_3D);
+		containers.push_back(mm);
+
+	}
+}
+
+void EvenPointInstancer::instance(){
+	for (int i = get_child_count() - 1; i >= 0; i--) {
+		Node* child = get_child(i);
+		if (Object::cast_to<MultiMeshInstance3D>(child)) {
+			remove_child(child);
+			memdelete(child);
+		}
+	}
+	calculate_positions();
+	manage_multis();
+	if (containers.is_empty() || actual_count <= 0) {
+		return;
+	}
+
+	for (int i = 0; i < containers.size(); i++) {
+		Ref<MultiMesh> m = containers[i];
+		m->set_instance_count(actual_count / containers.size());
+		m->set_custom_aabb(AABB(range_min, range_max));
+
+	}
+
+	for (int i = 0; i < actual_count; i++){
+
+		int mesh_idx = i % containers.size();
+		int instance_idx = i / containers.size();
+
+		Ref<MultiMesh> m = containers[mesh_idx];
+
+		if(instance_idx < m->get_instance_count()){
+			Transform3D instance_transform;
+			instance_transform.origin = pointPositions[i];
+			instance_transform.basis = Basis::from_euler(pointNormals[i]);
+			m->set_instance_transform(instance_idx, instance_transform);
+		}
+	}
+
+	for (int i = 0; i < containers.size(); i++) {
+		MultiMeshInstance3D* mmi = memnew(MultiMeshInstance3D);
+		mmi->set_multimesh(containers[i]);
+		add_child(mmi);
+
+		if (is_inside_tree() && Engine::get_singleton()->is_editor_hint()) {
+			mmi->set_owner(get_owner() ? get_owner() : this);
+		}
+	}
+
 	// think about occlusions
 }
 
-void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points){
+void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals){
 	if (!target) {return;}
+
+	if (!is_inside_world()) {
+		return;
+	}
 
 	Ref<World3D> world = get_world_3d();
 	if (world.is_null()) {return;}
@@ -209,28 +278,13 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 			instance_transform.basis.set_column(0, right);
 			instance_transform.basis.set_column(1, up);
 			instance_transform.basis.set_column(2, forward);
-
-			multi_mesh->set_instance_transform(i, instance_transform);
-
+			normals.set(i, instance_transform.basis.get_euler());
 			}else{
 				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
 			}
 	}
 }
 
-
-
-Ref<Mesh> EvenPointInstancer::get_instance_mesh(){
-	return instance_mesh;
-}
-
-void EvenPointInstancer::set_instance_mesh(Ref<Mesh> p_mesh){
-	instance_mesh = p_mesh;
-	if (multi_mesh.is_valid()) {
-		multi_mesh->set_mesh(instance_mesh);
-
-	}
-}
 
 MeshInstance3D* EvenPointInstancer::get_target_mesh(){
 	return target_mesh;
@@ -293,6 +347,16 @@ Vector3 EvenPointInstancer::get_range_max(){
 
 void EvenPointInstancer::set_range_max(Vector3 p_range){
 	range_max = p_range;
+	instance();
+}
+
+
+TypedArray<Mesh> EvenPointInstancer::get_meshes(){
+	return meshes;
+}
+
+void EvenPointInstancer::set_meshes(Array p_meshes){
+	meshes = p_meshes;
 	instance();
 }
 

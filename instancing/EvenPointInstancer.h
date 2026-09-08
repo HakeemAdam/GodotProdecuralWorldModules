@@ -3,6 +3,7 @@
 #include "GridOps.h"
 #include "core/math/vector3.h"
 #include "core/object/object.h"
+#include "core/string/node_path.h"
 #include "core/variant/array.h"
 #include "core/variant/typed_array.h"
 #include "core/variant/variant.h"
@@ -17,6 +18,8 @@ class EvenPointInstancer : public Node3D{
 	GDCLASS(EvenPointInstancer, Node3D);
 
 	private:
+
+	// sort
 		float minDist;
 		int maxAttempts;
 		Bounds2D bounds;
@@ -41,10 +44,15 @@ class EvenPointInstancer : public Node3D{
 		Vector3 range_max;
 
 		TypedArray<MultiMesh> containers;
+		TypedArray<NodePath> occluded;
 
 		void calculate_positions();
 
 		void manage_multis();
+
+		HashSet<RID> getOcclusionList();
+
+		void remove_points();
 
 	protected:
 		static void _bind_methods();
@@ -87,5 +95,8 @@ class EvenPointInstancer : public Node3D{
 
 		TypedArray<Mesh> get_meshes();
 		void set_meshes(Array p_meshes);
+
+		TypedArray<NodePath> get_occluders();
+		void set_occluders(Array p_occluders);
 };
 

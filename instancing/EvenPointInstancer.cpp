@@ -10,12 +10,18 @@
 #include "core/object/property_info.h"
 #include "core/object/ref_counted.h"
 #include "core/os/memory.h"
+#include "core/string/node_path.h"
 #include "core/string/print_string.h"
+#include "core/templates/vector.h"
 #include "core/variant/dictionary.h"
 #include "core/variant/typed_array.h"
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/multimesh_instance_3d.h"
+#include "scene/3d/physics/character_body_3d.h"
+#include "scene/3d/physics/collision_shape_3d.h"
+#include "scene/3d/physics/static_body_3d.h"
+#include "scene/main/node.h"
 #include "scene/resources/3d/world_3d.h"
 #include "scene/resources/mesh.h"
 #include "scene/resources/multimesh.h"
@@ -81,6 +87,13 @@ void EvenPointInstancer::_bind_methods(){
 
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "meshes", PROPERTY_HINT_TYPE_STRING, "Mesh"), "set_meshes", "get_meshes");
 
+	ClassDB::bind_method(D_METHOD("get_occluders"), &EvenPointInstancer::get_occluders);
+
+	ClassDB::bind_method(D_METHOD("set_occluders", "p_occluders"), &EvenPointInstancer::set_occluders);
+
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Occluder", PROPERTY_HINT_TYPE_STRING,
+        vformat("%d/%d:%s", Variant::NODE_PATH, PROPERTY_HINT_NODE_TYPE, "MeshInstance3D")), "set_occluders","get_occluders");
+
 }
 
 EvenPointInstancer::EvenPointInstancer(){
@@ -98,6 +111,7 @@ EvenPointInstancer::EvenPointInstancer(){
 
 	meshes = TypedArray<Mesh>();
 	containers = TypedArray<MultiMesh>();
+	occluded = TypedArray<NodePath>();
 }
 
 
@@ -119,6 +133,10 @@ void EvenPointInstancer::ready(){
 }
 
 void EvenPointInstancer::calculate_positions(){
+	if (!is_inside_tree()) {
+        return;
+    }
+
 	actual_count = 0;
 	pointPositions.clear();
 	pointNormals.clear();
@@ -150,6 +168,7 @@ void EvenPointInstancer::calculate_positions(){
 
 	if (useTargetMesh) {
 		raycastPoints(target_mesh, pointPositions, pointNormals);
+		remove_points();
 	}
 }
 
@@ -224,6 +243,80 @@ void EvenPointInstancer::instance(){
 	// think about occlusions
 }
 
+// Occlusion needs to be manual in the position math, for each occlude, check if the points are in the area, then
+// remove or move?
+//
+void EvenPointInstancer::remove_points(){
+	PackedVector3Array valid_pos;
+	PackedVector3Array valid_normals;
+
+	Vector<AABB> bounds_list;
+	for(int i=0; i< occluded.size(); i++){
+		if (has_node(occluded[i])) {
+			MeshInstance3D* mesh = Object::cast_to<MeshInstance3D>(get_node(occluded[i]));
+			if(mesh){
+				bounds_list.push_back(mesh->get_global_transform().xform(mesh->get_aabb()));
+			}
+		}
+	}
+
+	for(int j=0; j < pointPositions.size(); j++){
+		Vector3 globalPos = to_global(pointPositions[j]);
+
+		bool insideAny = false;
+
+		for(int k =0; k < bounds_list.size(); k++){
+			if(bounds_list[k].has_point(globalPos)){
+				insideAny = true;
+				break;
+			}
+		}
+
+		if(!insideAny){
+			valid_pos.push_back(pointPositions[j]);
+			valid_normals.push_back(pointNormals[j]);
+		}
+	}
+
+	pointPositions = valid_pos;
+	pointNormals = valid_normals;
+
+	actual_count =pointPositions.size();
+}
+
+HashSet<RID> EvenPointInstancer::getOcclusionList(){
+	HashSet<RID> result;
+
+	for (int i =0; i < occluded.size(); i++){
+		NodePath path = occluded[i];
+
+		if (!has_node(path)) {
+			print_line("Node not found");
+            continue;
+        }
+
+		MeshInstance3D* mesh = Object::cast_to<MeshInstance3D>(get_node(path));
+		if (mesh){
+			 Node* body_node = mesh->get_node(NodePath("StaticBody3D"));
+
+            if (!body_node) {
+                print_line("StaticBody3D child not found under mesh.");
+                continue;
+            }
+            CollisionObject3D* obj = Object::cast_to<CollisionObject3D>(body_node);
+
+            if (obj) {
+                RID id = obj->get_rid();
+                result.insert(id);
+            } else {
+                print_line("Child node is not a CollisionObject3D.");
+            }
+		}
+	}
+
+	return result;
+}
+
 void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals){
 	if (!target) {return;}
 
@@ -245,9 +338,13 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 
 	Basis go = get_global_transform().basis.inverse();
 
+	// remove occluder
+	HashSet<RID> occluder = getOcclusionList();
+
 	for(int i = 0; i < points.size(); i++){
 		Vector3 origin = to_global(Vector3(points[i].x, start_y, points[i].z));
 		Vector3 dest = origin + Vector3(0.0, -ray_length, 0.0);
+
 
 		PhysicsServer3DTypes::RayParameters params;
 		params.from = origin;
@@ -255,7 +352,7 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 		params.collide_with_areas = true;
 		params.collide_with_bodies = true;
 		params.collision_mask = collision_mask;
-
+		params.exclude = occluder;
 
 		PhysicsServer3DTypes::RayResult results = {};
 
@@ -263,7 +360,7 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 
 		if(space_state->intersect_ray(params, results)){
 			Vector3 hit_point = results.position;
-			print_line("Point : ", i , "pos: ", hit_point);
+			//print_line("Point : ", i , "pos: ", hit_point);
 
 			Vector3 local_pos = to_local(hit_point);
 			points.set(i, local_pos);
@@ -283,7 +380,7 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
 			}
 
-		print_line(results.collider->to_string());
+		//print_line(results.collider->to_string());
 	}
 }
 
@@ -368,6 +465,17 @@ TypedArray<Mesh> EvenPointInstancer::get_meshes(){
 
 void EvenPointInstancer::set_meshes(Array p_meshes){
 	meshes = p_meshes;
+	instance();
+}
+
+
+TypedArray<NodePath > EvenPointInstancer::get_occluders(){
+
+	return occluded;
+}
+
+void EvenPointInstancer::set_occluders(Array p_occluders){
+	occluded = p_occluders;
 	instance();
 }
 

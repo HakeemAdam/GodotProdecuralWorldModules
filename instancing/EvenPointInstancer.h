@@ -29,6 +29,7 @@ class EvenPointInstancer : public Node3D{
 		bool useTargetMesh;
 		bool randomize;
 		int actual_count;
+		int collision_mask;
 
 		// Rename class
 
@@ -71,6 +72,9 @@ class EvenPointInstancer : public Node3D{
 
 		int get_count();
 		void set_count(int p_count);
+
+		int get_collision_mask();
+		void set_collision_mask(int p_mask);
 
 		float get_minDist();
 		void set_minDist(float p_minDist);

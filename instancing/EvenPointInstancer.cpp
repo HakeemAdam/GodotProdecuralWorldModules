@@ -27,12 +27,6 @@
 
 void EvenPointInstancer::_bind_methods(){
 
-	/*ClassDB::bind_method(D_METHOD("get_instance_mesh"), &EvenPointInstancer::get_instance_mesh);
-
-	ClassDB::bind_method(D_METHOD("set_instance_mesh", "p_mesh"), &EvenPointInstancer::set_instance_mesh);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "instance_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh", PROPERTY_USAGE_DEFAULT), "set_instance_mesh","get_instance_mesh");*/
-
 	ClassDB::bind_method(D_METHOD("get_target_mesh"), &EvenPointInstancer::get_target_mesh);
 
 	ClassDB::bind_method(D_METHOD("set_target_mesh", "p_mesh"), &EvenPointInstancer::set_target_mesh);
@@ -56,6 +50,12 @@ void EvenPointInstancer::_bind_methods(){
 	ClassDB::bind_method(D_METHOD("get_count"), &EvenPointInstancer::get_count);
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "count"), "set_count", "get_count");
+
+	ClassDB::bind_method(D_METHOD("set_collision_mask", "p_mask"), &EvenPointInstancer::set_collision_mask);
+
+	ClassDB::bind_method(D_METHOD("get_collision_mask"), &EvenPointInstancer::get_collision_mask);
+
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "collision mask"), "set_collision_mask", "get_collision_mask");
 
 	ClassDB::bind_method(D_METHOD("set_minDist", "p_minDist"), &EvenPointInstancer::set_minDist);
 
@@ -94,6 +94,7 @@ EvenPointInstancer::EvenPointInstancer(){
 	randomize = false;
 	range_min = {0.0, 0.0, 0.0};
 	range_max = {25.0, 25.0, 25.0};
+	collision_mask = 1;
 
 	meshes = TypedArray<Mesh>();
 	containers = TypedArray<MultiMesh>();
@@ -114,8 +115,6 @@ void EvenPointInstancer::_notification(int p_what){
 }
 
 void EvenPointInstancer::ready(){
-
-
     instance();
 }
 
@@ -195,7 +194,6 @@ void EvenPointInstancer::instance(){
 		Ref<MultiMesh> m = containers[i];
 		m->set_instance_count(actual_count / containers.size());
 		m->set_custom_aabb(AABB(range_min, range_max));
-
 	}
 
 	for (int i = 0; i < actual_count; i++){
@@ -256,6 +254,8 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 		params.to = dest;
 		params.collide_with_areas = true;
 		params.collide_with_bodies = true;
+		params.collision_mask = collision_mask;
+
 
 		PhysicsServer3DTypes::RayResult results = {};
 
@@ -282,6 +282,8 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 			}else{
 				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
 			}
+
+		print_line(results.collider->to_string());
 	}
 }
 
@@ -319,6 +321,15 @@ int EvenPointInstancer::get_count(){
 
 void EvenPointInstancer::set_count(int p_count){
 	count = p_count;
+	instance();
+}
+
+int EvenPointInstancer::get_collision_mask(){
+	return collision_mask;
+}
+
+void EvenPointInstancer::set_collision_mask(int p_mask){
+	collision_mask = p_mask;
 	instance();
 }
 

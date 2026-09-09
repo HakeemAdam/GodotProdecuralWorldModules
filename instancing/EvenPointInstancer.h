@@ -1,6 +1,8 @@
 #pragma once
 
 #include "GridOps.h"
+#include "core/math/random_number_generator.h"
+#include "core/math/vector2.h"
 #include "core/math/vector3.h"
 #include "core/object/object.h"
 #include "core/string/node_path.h"
@@ -28,12 +30,14 @@ class EvenPointInstancer : public Node3D{
 		int count;
 		Vector3 range_min;
 		Vector3 range_max;
+		Vector2 scale_range;
 		TypedArray<Mesh> meshes;
 		MeshInstance3D* target_mesh = nullptr;
 		bool useTargetMesh;
 		bool randomize;
 		int actual_count;
 		int collision_mask;
+		Ref<RandomNumberGenerator> rng;
 
 		// Containers
 		PackedVector3Array pointPositions;
@@ -45,8 +49,9 @@ class EvenPointInstancer : public Node3D{
 		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals);
 		void calculate_positions();
 		void manage_multis();
-		HashSet<RID> getOcclusionList();
 		void remove_points();
+
+		// move rng to member
 
 	public:
 		EvenPointInstancer();
@@ -89,6 +94,9 @@ class EvenPointInstancer : public Node3D{
 
 		TypedArray<NodePath> get_occluders();
 		void set_occluders(Array p_occluders);
+
+		Vector2 get_scale_range();
+		void set_scale_range(Vector2 p_scale_range);
 
 	protected:
 		static void _bind_methods();

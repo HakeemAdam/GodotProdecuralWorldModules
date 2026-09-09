@@ -4,6 +4,7 @@
 #include "core/math/basis.h"
 #include "core/math/random_number_generator.h"
 #include "core/math/transform_3d.h"
+#include "core/math/vector2.h"
 #include "core/math/vector3.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
@@ -42,10 +43,13 @@ EvenPointInstancer::EvenPointInstancer(){
 	range_min = {0.0, 0.0, 0.0};
 	range_max = {25.0, 25.0, 25.0};
 	collision_mask = 1;
+	scale_range = {1.0, 1.2};
 
 	meshes = TypedArray<Mesh>();
 	containers = TypedArray<MultiMesh>();
 	occluded = TypedArray<NodePath>();
+
+	rng.instantiate();
 }
 
 
@@ -81,8 +85,6 @@ void EvenPointInstancer::calculate_positions(){
 	PoissonOutput output;
 	GeneratePoissonSampling(input,output);
 
-	Ref<RandomNumberGenerator> rng;
-	rng.instantiate();
 
 	actual_count = std::min(count, static_cast<int>(output.points.size()));
 
@@ -170,6 +172,7 @@ void EvenPointInstancer::instance(){
 			Transform3D instance_transform;
 			instance_transform.origin = pointPositions[i];
 			instance_transform.basis = Basis::from_euler(pointNormals[i]);
+			instance_transform.basis *= rng->randf_range(scale_range.x, scale_range.y);
 			m->set_instance_transform(instance_idx, instance_transform);
 		}
 	}
@@ -228,39 +231,6 @@ void EvenPointInstancer::remove_points(){
 	actual_count =pointPositions.size();
 }
 
-HashSet<RID> EvenPointInstancer::getOcclusionList(){
-	// Get rendering ID for ray cast query. consider removing as occlusion is handled differently
-
-	HashSet<RID> result;
-	for (int i =0; i < occluded.size(); i++){
-		NodePath path = occluded[i];
-
-		if (!has_node(path)) {
-			print_line("Node not found");
-            continue;
-        }
-
-		MeshInstance3D* mesh = Object::cast_to<MeshInstance3D>(get_node(path));
-		if (mesh){
-			 Node* body_node = mesh->get_node(NodePath("StaticBody3D"));
-
-            if (!body_node) {
-                print_line("StaticBody3D child not found under mesh.");
-                continue;
-            }
-            CollisionObject3D* obj = Object::cast_to<CollisionObject3D>(body_node);
-
-            if (obj) {
-                RID id = obj->get_rid();
-                result.insert(id);
-            } else {
-                print_line("Child node is not a CollisionObject3D.");
-            }
-		}
-	}
-
-	return result;
-}
 
 void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals){
 	if (!target) {return;}
@@ -283,9 +253,6 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 
 	Basis go = get_global_transform().basis.inverse();
 
-	// remove occluder
-	HashSet<RID> occluder = getOcclusionList();
-
 	for(int i = 0; i < points.size(); i++){
 		Vector3 origin = to_global(Vector3(points[i].x, start_y, points[i].z));
 		Vector3 dest = origin + Vector3(0.0, -ray_length, 0.0);
@@ -297,7 +264,6 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 		params.collide_with_areas = true;
 		params.collide_with_bodies = true;
 		params.collision_mask = collision_mask;
-		params.exclude = occluder;
 
 		PhysicsServer3DTypes::RayResult results = {};
 
@@ -322,10 +288,6 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 			instance_transform.basis.set_column(2, forward);
 			normals.set(i, instance_transform.basis.get_euler());
 		}
-			/*else
-				{
-				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
-			}*/
 	}
 }
 
@@ -424,6 +386,15 @@ void EvenPointInstancer::set_occluders(Array p_occluders){
 	instance();
 }
 
+Vector2 EvenPointInstancer::get_scale_range(){
+	return scale_range;
+}
+
+void EvenPointInstancer::set_scale_range(Vector2 p_scale_range){
+	scale_range = p_scale_range;
+	instance();
+}
+
 
 void EvenPointInstancer::_bind_methods(){
 
@@ -467,10 +438,15 @@ void EvenPointInstancer::_bind_methods(){
 
 	ClassDB::bind_method(D_METHOD("set_occluders", "p_occluders"), &EvenPointInstancer::set_occluders);
 
+	ClassDB::bind_method(D_METHOD("get_scale_range"), &EvenPointInstancer::get_scale_range);
+
+	ClassDB::bind_method(D_METHOD("set_scale_range", "p_scale_range"), &EvenPointInstancer::set_scale_range);
+
 	// Properties
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "Count"), "set_count", "get_count");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Minimum Distance"), "set_minDist", "get_minDist");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "Scale Range"), "set_scale_range", "get_scale_range");
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Use Target Mesh"), "set_useTargetMesh", "get_useTargetMesh");
@@ -482,6 +458,6 @@ void EvenPointInstancer::_bind_methods(){
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "Range Max"), "set_range_max", "get_range_max");
 
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Instance Meshes", PROPERTY_HINT_TYPE_STRING, "Mesh"), "set_meshes", "get_meshes");
-	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Occluder", PROPERTY_HINT_TYPE_STRING, vformat("%d/%d:%s", Variant::NODE_PATH, PROPERTY_HINT_NODE_TYPE, "MeshInstance3D")), "set_occluders","get_occluders");
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Occluders", PROPERTY_HINT_TYPE_STRING, vformat("%d/%d:%s", Variant::NODE_PATH, PROPERTY_HINT_NODE_TYPE, "MeshInstance3D")), "set_occluders","get_occluders");
 
 }

@@ -50,6 +50,7 @@ EvenPointInstancer::EvenPointInstancer(){
 	occluded = TypedArray<NodePath>();
 
 	rng.instantiate();
+	instance_material.instantiate();
 }
 
 
@@ -182,6 +183,7 @@ void EvenPointInstancer::instance(){
 		MultiMeshInstance3D* mmi = memnew(MultiMeshInstance3D);
 		mmi->set_multimesh(containers[i]);
 		add_child(mmi);
+		mmi->set_material_override(instance_material);
 
 		if (is_inside_tree() && Engine::get_singleton()->is_editor_hint()) {
 			mmi->set_owner(get_owner() ? get_owner() : this);
@@ -305,7 +307,7 @@ bool EvenPointInstancer::get_useTargetMesh(){
 	return useTargetMesh;
 }
 
-void EvenPointInstancer::set_useTargetMesh(bool p_option){
+void EvenPointInstancer::set_useTargetMesh( const bool p_option){
 	useTargetMesh = p_option;
 	instance();
 }
@@ -314,7 +316,7 @@ bool EvenPointInstancer::get_randomize(){
 	return randomize;
 }
 
-void EvenPointInstancer::set_randomize(bool p_option){
+void EvenPointInstancer::set_randomize(const bool p_option){
 	randomize = p_option;
 	instance();
 }
@@ -323,7 +325,7 @@ int EvenPointInstancer::get_count(){
 	return count;
 }
 
-void EvenPointInstancer::set_count(int p_count){
+void EvenPointInstancer::set_count(const int p_count){
 	count = p_count;
 	instance();
 }
@@ -332,7 +334,7 @@ int EvenPointInstancer::get_collision_mask(){
 	return collision_mask;
 }
 
-void EvenPointInstancer::set_collision_mask(int p_mask){
+void EvenPointInstancer::set_collision_mask(const int p_mask){
 	collision_mask = p_mask;
 	instance();
 }
@@ -341,7 +343,7 @@ float EvenPointInstancer::get_minDist(){
 	return minDist;
 }
 
-void EvenPointInstancer::set_minDist(float p_minDist){
+void EvenPointInstancer::set_minDist(const float p_minDist){
 	minDist = p_minDist;
 	instance();
 }
@@ -351,7 +353,7 @@ Vector3 EvenPointInstancer::get_range_min(){
 	return range_min;
 }
 
-void EvenPointInstancer::set_range_min(Vector3 p_range){
+void EvenPointInstancer::set_range_min(const Vector3 p_range){
 	range_min = p_range;
 	instance();
 }
@@ -360,7 +362,7 @@ Vector3 EvenPointInstancer::get_range_max(){
 	return range_max;
 }
 
-void EvenPointInstancer::set_range_max(Vector3 p_range){
+void EvenPointInstancer::set_range_max(const Vector3 p_range){
 	range_max = p_range;
 	instance();
 }
@@ -370,7 +372,7 @@ TypedArray<Mesh> EvenPointInstancer::get_meshes(){
 	return meshes;
 }
 
-void EvenPointInstancer::set_meshes(Array p_meshes){
+void EvenPointInstancer::set_meshes(const Array p_meshes){
 	meshes = p_meshes;
 	instance();
 }
@@ -381,7 +383,7 @@ TypedArray<NodePath > EvenPointInstancer::get_occluders(){
 	return occluded;
 }
 
-void EvenPointInstancer::set_occluders(Array p_occluders){
+void EvenPointInstancer::set_occluders(const Array p_occluders){
 	occluded = p_occluders;
 	instance();
 }
@@ -390,9 +392,17 @@ Vector2 EvenPointInstancer::get_scale_range(){
 	return scale_range;
 }
 
-void EvenPointInstancer::set_scale_range(Vector2 p_scale_range){
+void EvenPointInstancer::set_scale_range(const Vector2 p_scale_range){
 	scale_range = p_scale_range;
 	instance();
+}
+
+Ref<ShaderMaterial> EvenPointInstancer::get_instance_material(){
+	return instance_material;
+}
+
+void EvenPointInstancer::set_instance_material(const Ref<ShaderMaterial >& p_instance_mat){
+	instance_material = p_instance_mat;
 }
 
 
@@ -442,6 +452,10 @@ void EvenPointInstancer::_bind_methods(){
 
 	ClassDB::bind_method(D_METHOD("set_scale_range", "p_scale_range"), &EvenPointInstancer::set_scale_range);
 
+	ClassDB::bind_method(D_METHOD("set_instance_material", "p_instance_mat"), &EvenPointInstancer::set_instance_material);
+
+	ClassDB::bind_method(D_METHOD("get_instance_material"), &EvenPointInstancer::get_instance_material);
+
 	// Properties
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "Count"), "set_count", "get_count");
@@ -449,6 +463,9 @@ void EvenPointInstancer::_bind_methods(){
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "Scale Range"), "set_scale_range", "get_scale_range");
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
+
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "instance_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_instance_material", "get_instance_material");
+
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Use Target Mesh"), "set_useTargetMesh", "get_useTargetMesh");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "Target Mesh", PROPERTY_HINT_NODE_TYPE, "MeshInstance3D"), "set_target_mesh","get_target_mesh");
 

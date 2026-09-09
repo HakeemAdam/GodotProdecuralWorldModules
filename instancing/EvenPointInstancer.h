@@ -19,52 +19,43 @@ class EvenPointInstancer : public Node3D{
 
 	private:
 
-	// sort
+		// Posisson Disk Variables
 		float minDist;
 		int maxAttempts;
 		Bounds2D bounds;
 
-		TypedArray<Mesh> meshes;
-
+		// Instancing
 		int count;
-
+		Vector3 range_min;
+		Vector3 range_max;
+		TypedArray<Mesh> meshes;
 		MeshInstance3D* target_mesh = nullptr;
 		bool useTargetMesh;
 		bool randomize;
 		int actual_count;
 		int collision_mask;
 
-		// Rename class
-
-		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals);
-
+		// Containers
 		PackedVector3Array pointPositions;
 		PackedVector3Array pointNormals;
-		Vector3 range_min;
-		Vector3 range_max;
-
 		TypedArray<MultiMesh> containers;
 		TypedArray<NodePath> occluded;
 
+		// Internal functions
+		void raycastPoints(MeshInstance3D* target, PackedVector3Array& points, PackedVector3Array& normals);
 		void calculate_positions();
-
 		void manage_multis();
-
 		HashSet<RID> getOcclusionList();
-
 		void remove_points();
-
-	protected:
-		static void _bind_methods();
-		void _notification(int p_what);
 
 	public:
 		EvenPointInstancer();
 		~EvenPointInstancer();
 
 		void ready();
-
 		void instance();
+
+		// Bindings
 
 		Ref<Mesh> get_instance_mesh();
 		void set_instance_mesh(Ref<Mesh> p_mesh);
@@ -98,5 +89,9 @@ class EvenPointInstancer : public Node3D{
 
 		TypedArray<NodePath> get_occluders();
 		void set_occluders(Array p_occluders);
+
+	protected:
+		static void _bind_methods();
+		void _notification(int p_what);
 };
 

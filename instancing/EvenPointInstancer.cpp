@@ -18,9 +18,8 @@
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/multimesh_instance_3d.h"
-#include "scene/3d/physics/character_body_3d.h"
+#include "scene/3d/physics/collision_object_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
-#include "scene/3d/physics/static_body_3d.h"
 #include "scene/main/node.h"
 #include "scene/resources/3d/world_3d.h"
 #include "scene/resources/mesh.h"
@@ -30,71 +29,6 @@
 #include <cstdlib>
 #include "EvenPointInstancer.h"
 #include "PoissonDiskSample.h"
-
-void EvenPointInstancer::_bind_methods(){
-
-	ClassDB::bind_method(D_METHOD("get_target_mesh"), &EvenPointInstancer::get_target_mesh);
-
-	ClassDB::bind_method(D_METHOD("set_target_mesh", "p_mesh"), &EvenPointInstancer::set_target_mesh);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "target_mesh", PROPERTY_HINT_NODE_TYPE, "MeshInstance3D"), "set_target_mesh","get_target_mesh");
-
-	ClassDB::bind_method(D_METHOD("get_useTargetMesh"), &EvenPointInstancer::get_useTargetMesh);
-
-	ClassDB::bind_method(D_METHOD("set_useTargetMesh", "p_option"), &EvenPointInstancer::set_useTargetMesh);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use target Mesh"), "set_useTargetMesh", "get_useTargetMesh");
-
-	ClassDB::bind_method(D_METHOD("get_randomize"), &EvenPointInstancer::get_randomize);
-
-	ClassDB::bind_method(D_METHOD("set_randomize", "p_option"), &EvenPointInstancer::set_randomize);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
-
-	ClassDB::bind_method(D_METHOD("set_count", "p_count"), &EvenPointInstancer::set_count);
-
-	ClassDB::bind_method(D_METHOD("get_count"), &EvenPointInstancer::get_count);
-
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "count"), "set_count", "get_count");
-
-	ClassDB::bind_method(D_METHOD("set_collision_mask", "p_mask"), &EvenPointInstancer::set_collision_mask);
-
-	ClassDB::bind_method(D_METHOD("get_collision_mask"), &EvenPointInstancer::get_collision_mask);
-
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "collision mask"), "set_collision_mask", "get_collision_mask");
-
-	ClassDB::bind_method(D_METHOD("set_minDist", "p_minDist"), &EvenPointInstancer::set_minDist);
-
-	ClassDB::bind_method(D_METHOD("get_minDist"), &EvenPointInstancer::get_minDist);
-
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "min dist"), "set_minDist", "get_minDist");
-
-	ClassDB::bind_method(D_METHOD("set_range_min", "p_range"), &EvenPointInstancer::set_range_min);
-
-	ClassDB::bind_method(D_METHOD("get_range_min"), &EvenPointInstancer::get_range_min);
-
-	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "range min"), "set_range_min", "get_range_min");
-
-	ClassDB::bind_method(D_METHOD("set_range_max", "p_range"), &EvenPointInstancer::set_range_max);
-
-	ClassDB::bind_method(D_METHOD("get_range_max"), &EvenPointInstancer::get_range_max);
-
-	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "range max"), "set_range_max", "get_range_max");
-
-	ClassDB::bind_method(D_METHOD("set_meshes", "p_mehses"), &EvenPointInstancer::set_meshes);
-
-	ClassDB::bind_method(D_METHOD("get_meshes"), &EvenPointInstancer::get_meshes);
-
-	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "meshes", PROPERTY_HINT_TYPE_STRING, "Mesh"), "set_meshes", "get_meshes");
-
-	ClassDB::bind_method(D_METHOD("get_occluders"), &EvenPointInstancer::get_occluders);
-
-	ClassDB::bind_method(D_METHOD("set_occluders", "p_occluders"), &EvenPointInstancer::set_occluders);
-
-	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Occluder", PROPERTY_HINT_TYPE_STRING,
-        vformat("%d/%d:%s", Variant::NODE_PATH, PROPERTY_HINT_NODE_TYPE, "MeshInstance3D")), "set_occluders","get_occluders");
-
-}
 
 EvenPointInstancer::EvenPointInstancer(){
 	count = 10;
@@ -115,9 +49,7 @@ EvenPointInstancer::EvenPointInstancer(){
 }
 
 
-EvenPointInstancer::~EvenPointInstancer(){
-
-}
+EvenPointInstancer::~EvenPointInstancer(){}
 
 void EvenPointInstancer::_notification(int p_what){
 	switch(p_what){
@@ -128,6 +60,7 @@ void EvenPointInstancer::_notification(int p_what){
 	}
 }
 
+// Vestige of gd extension, keeping for compatibility
 void EvenPointInstancer::ready(){
     instance();
 }
@@ -143,9 +76,9 @@ void EvenPointInstancer::calculate_positions(){
 
 	bounds = {range_min.x, range_min.z, range_max.x, range_max.z};
 
+	// Get evenly spaced positions
 	PoissonInput input = {bounds, minDist, maxAttempts};
 	PoissonOutput output;
-
 	GeneratePoissonSampling(input,output);
 
 	Ref<RandomNumberGenerator> rng;
@@ -153,6 +86,7 @@ void EvenPointInstancer::calculate_positions(){
 
 	actual_count = std::min(count, static_cast<int>(output.points.size()));
 
+	// Set evenly spaced or randomize
 	for (int i = 0; i < actual_count; i++){
 		Vector2 point = output.points[i];
 		Vector3 pos;
@@ -166,6 +100,7 @@ void EvenPointInstancer::calculate_positions(){
 		pointNormals.push_back(Vector3(0,1,0));
 	}
 
+	// Ray casting and occlusion
 	if (useTargetMesh) {
 		raycastPoints(target_mesh, pointPositions, pointNormals);
 		remove_points();
@@ -179,6 +114,7 @@ void EvenPointInstancer::manage_multis(){
 		return;
 	}
 
+	// Add mutlimesh instance for each mesh and set mesh
 	for (int i=0; i < meshes.size(); i++) {
 		Ref<MultiMesh> mm;
 		Ref<Mesh> raw_mesh = meshes[i];
@@ -196,6 +132,7 @@ void EvenPointInstancer::manage_multis(){
 }
 
 void EvenPointInstancer::instance(){
+	// Remove old children before instancing
 	for (int i = get_child_count() - 1; i >= 0; i--) {
 		Node* child = get_child(i);
 		if (Object::cast_to<MultiMeshInstance3D>(child)) {
@@ -203,18 +140,25 @@ void EvenPointInstancer::instance(){
 			memdelete(child);
 		}
 	}
+
+	// Get positions and multis
 	calculate_positions();
 	manage_multis();
+
 	if (containers.is_empty() || actual_count <= 0) {
 		return;
 	}
 
+	// Diving containers/meshes based on number of meshes
+	// Extend to support ratios
 	for (int i = 0; i < containers.size(); i++) {
 		Ref<MultiMesh> m = containers[i];
 		m->set_instance_count(actual_count / containers.size());
 		m->set_custom_aabb(AABB(range_min, range_max));
 	}
 
+
+	// Set transforms and normals based on division
 	for (int i = 0; i < actual_count; i++){
 
 		int mesh_idx = i % containers.size();
@@ -230,6 +174,7 @@ void EvenPointInstancer::instance(){
 		}
 	}
 
+	// Create multi mesh instances and set multies to them and add to node tree. Do this last to prevent crashes
 	for (int i = 0; i < containers.size(); i++) {
 		MultiMeshInstance3D* mmi = memnew(MultiMeshInstance3D);
 		mmi->set_multimesh(containers[i]);
@@ -240,16 +185,15 @@ void EvenPointInstancer::instance(){
 		}
 	}
 
-	// think about occlusions
 }
 
-// Occlusion needs to be manual in the position math, for each occlude, check if the points are in the area, then
-// remove or move?
-//
+
 void EvenPointInstancer::remove_points(){
+	// Tracked valid positions and normals
 	PackedVector3Array valid_pos;
 	PackedVector3Array valid_normals;
 
+	// Store bounding boxes of all occluders. So as to not recreate
 	Vector<AABB> bounds_list;
 	for(int i=0; i< occluded.size(); i++){
 		if (has_node(occluded[i])) {
@@ -260,11 +204,10 @@ void EvenPointInstancer::remove_points(){
 		}
 	}
 
+	// Check each point intersection
 	for(int j=0; j < pointPositions.size(); j++){
 		Vector3 globalPos = to_global(pointPositions[j]);
-
 		bool insideAny = false;
-
 		for(int k =0; k < bounds_list.size(); k++){
 			if(bounds_list[k].has_point(globalPos)){
 				insideAny = true;
@@ -272,21 +215,23 @@ void EvenPointInstancer::remove_points(){
 			}
 		}
 
+		// Save valid positions and normals
 		if(!insideAny){
 			valid_pos.push_back(pointPositions[j]);
 			valid_normals.push_back(pointNormals[j]);
 		}
 	}
 
+	// Update positions and normals and instance count
 	pointPositions = valid_pos;
 	pointNormals = valid_normals;
-
 	actual_count =pointPositions.size();
 }
 
 HashSet<RID> EvenPointInstancer::getOcclusionList(){
-	HashSet<RID> result;
+	// Get rendering ID for ray cast query. consider removing as occlusion is handled differently
 
+	HashSet<RID> result;
 	for (int i =0; i < occluded.size(); i++){
 		NodePath path = occluded[i];
 
@@ -376,11 +321,11 @@ void EvenPointInstancer::raycastPoints(MeshInstance3D* target, PackedVector3Arra
 			instance_transform.basis.set_column(1, up);
 			instance_transform.basis.set_column(2, forward);
 			normals.set(i, instance_transform.basis.get_euler());
-			}else{
+		}
+			/*else
+				{
 				print_line("No hit for point ", i, " at X:", origin.x, " Z:", origin.z);
-			}
-
-		//print_line(results.collider->to_string());
+			}*/
 	}
 }
 
@@ -479,3 +424,64 @@ void EvenPointInstancer::set_occluders(Array p_occluders){
 	instance();
 }
 
+
+void EvenPointInstancer::_bind_methods(){
+
+	ClassDB::bind_method(D_METHOD("get_target_mesh"), &EvenPointInstancer::get_target_mesh);
+
+	ClassDB::bind_method(D_METHOD("set_target_mesh", "p_mesh"), &EvenPointInstancer::set_target_mesh);
+
+	ClassDB::bind_method(D_METHOD("get_useTargetMesh"), &EvenPointInstancer::get_useTargetMesh);
+
+	ClassDB::bind_method(D_METHOD("set_useTargetMesh", "p_option"), &EvenPointInstancer::set_useTargetMesh);
+
+	ClassDB::bind_method(D_METHOD("get_randomize"), &EvenPointInstancer::get_randomize);
+
+	ClassDB::bind_method(D_METHOD("set_randomize", "p_option"), &EvenPointInstancer::set_randomize);
+
+	ClassDB::bind_method(D_METHOD("set_count", "p_count"), &EvenPointInstancer::set_count);
+
+	ClassDB::bind_method(D_METHOD("get_count"), &EvenPointInstancer::get_count);
+
+	ClassDB::bind_method(D_METHOD("set_collision_mask", "p_mask"), &EvenPointInstancer::set_collision_mask);
+
+	ClassDB::bind_method(D_METHOD("get_collision_mask"), &EvenPointInstancer::get_collision_mask);
+
+	ClassDB::bind_method(D_METHOD("set_minDist", "p_minDist"), &EvenPointInstancer::set_minDist);
+
+	ClassDB::bind_method(D_METHOD("get_minDist"), &EvenPointInstancer::get_minDist);
+
+	ClassDB::bind_method(D_METHOD("set_range_min", "p_range"), &EvenPointInstancer::set_range_min);
+
+	ClassDB::bind_method(D_METHOD("get_range_min"), &EvenPointInstancer::get_range_min);
+
+	ClassDB::bind_method(D_METHOD("set_range_max", "p_range"), &EvenPointInstancer::set_range_max);
+
+	ClassDB::bind_method(D_METHOD("get_range_max"), &EvenPointInstancer::get_range_max);
+
+	ClassDB::bind_method(D_METHOD("set_meshes", "p_mehses"), &EvenPointInstancer::set_meshes);
+
+	ClassDB::bind_method(D_METHOD("get_meshes"), &EvenPointInstancer::get_meshes);
+
+	ClassDB::bind_method(D_METHOD("get_occluders"), &EvenPointInstancer::get_occluders);
+
+	ClassDB::bind_method(D_METHOD("set_occluders", "p_occluders"), &EvenPointInstancer::set_occluders);
+
+	// Properties
+
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "Count"), "set_count", "get_count");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Minimum Distance"), "set_minDist", "get_minDist");
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Use Target Mesh"), "set_useTargetMesh", "get_useTargetMesh");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "Target Mesh", PROPERTY_HINT_NODE_TYPE, "MeshInstance3D"), "set_target_mesh","get_target_mesh");
+
+
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "Collision Mask"), "set_collision_mask", "get_collision_mask");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "Range Min"), "set_range_min", "get_range_min");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "Range Max"), "set_range_max", "get_range_max");
+
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Instance Meshes", PROPERTY_HINT_TYPE_STRING, "Mesh"), "set_meshes", "get_meshes");
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "Occluder", PROPERTY_HINT_TYPE_STRING, vformat("%d/%d:%s", Variant::NODE_PATH, PROPERTY_HINT_NODE_TYPE, "MeshInstance3D")), "set_occluders","get_occluders");
+
+}

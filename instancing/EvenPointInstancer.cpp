@@ -21,7 +21,9 @@
 #include "scene/3d/multimesh_instance_3d.h"
 #include "scene/3d/physics/collision_object_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
+#include "scene/3d/physics/static_body_3d.h"
 #include "scene/main/node.h"
+#include "scene/resources/3d/concave_polygon_shape_3d.h"
 #include "scene/resources/3d/world_3d.h"
 #include "scene/resources/mesh.h"
 #include "scene/resources/multimesh.h"
@@ -44,6 +46,9 @@ EvenPointInstancer::EvenPointInstancer(){
 	range_max = {25.0, 25.0, 25.0};
 	collision_mask = 1;
 	scale_range = {1.0, 1.2};
+	randomRotations = false;
+	rand_angle = 0.0;
+
 
 	meshes = TypedArray<Mesh>();
 	containers = TypedArray<MultiMesh>();
@@ -97,7 +102,7 @@ void EvenPointInstancer::calculate_positions(){
 		if(!randomize){
 			pos = {point.x, range_max.y, point.y};
 		}else{
-			pos = {point.x, rng->randf_range(range_min.y, range_max.y), point.y};
+		pos = {point.x, rng->randf_range(range_min.y, range_max.y), point.y};
 		}
 		pointPositions.push_back(pos);
 		pointNormals.push_back(Vector3(0,1,0));
@@ -121,16 +126,25 @@ void EvenPointInstancer::manage_multis(){
 	for (int i=0; i < meshes.size(); i++) {
 		Ref<MultiMesh> mm;
 		Ref<Mesh> raw_mesh = meshes[i];
+		//StaticBody3D* body = memnew(StaticBody3D);
 
 		if (raw_mesh.is_null()) {
 			continue;
 		}
 		mm.instantiate();
 
+		//Ref<ConcavePolygonShape3D> col = raw_mesh->create_trimesh_shape();
+
+		//CollisionShape3D* shape = memnew(CollisionShape3D);
+		//shape->set_shape(col);
+		//body->add_child(shape);
+
+		//add_child(body);
+
+
 		mm->set_mesh(raw_mesh);
 		mm->set_transform_format(MultiMesh::TRANSFORM_3D);
 		containers.push_back(mm);
-
 	}
 }
 
@@ -162,6 +176,7 @@ void EvenPointInstancer::instance(){
 
 
 	// Set transforms and normals based on division
+	// Division by ratios
 	for (int i = 0; i < actual_count; i++){
 
 		int mesh_idx = i % containers.size();
@@ -169,11 +184,21 @@ void EvenPointInstancer::instance(){
 
 		Ref<MultiMesh> m = containers[mesh_idx];
 
+
+
 		if(instance_idx < m->get_instance_count()){
 			Transform3D instance_transform;
 			instance_transform.origin = pointPositions[i];
-			instance_transform.basis = Basis::from_euler(pointNormals[i]);
+
+
+			if(!randomRotations){
+				instance_transform.basis = Basis::from_euler(pointNormals[i]);
+			}else{
+				instance_transform.basis.rotate(Vector3::UP, rand_angle);
+			}
+
 			instance_transform.basis *= rng->randf_range(scale_range.x, scale_range.y);
+
 			m->set_instance_transform(instance_idx, instance_transform);
 		}
 	}
@@ -405,6 +430,24 @@ void EvenPointInstancer::set_instance_material(const Ref<ShaderMaterial >& p_ins
 	instance_material = p_instance_mat;
 }
 
+float EvenPointInstancer::get_rand_angle(){
+	return rand_angle;
+}
+
+void EvenPointInstancer::set_rand_angle(const float p_angle){
+	rand_angle = p_angle;
+	instance();
+}
+
+bool EvenPointInstancer::get_use_RandomRotation(){
+	return randomRotations;
+}
+
+void EvenPointInstancer::set_use_RandomRotation(const bool p_angle){
+	randomRotations = p_angle;
+	instance();
+}
+
 
 void EvenPointInstancer::_bind_methods(){
 
@@ -456,6 +499,14 @@ void EvenPointInstancer::_bind_methods(){
 
 	ClassDB::bind_method(D_METHOD("get_instance_material"), &EvenPointInstancer::get_instance_material);
 
+	ClassDB::bind_method(D_METHOD("get_rand_angle"), &EvenPointInstancer::get_rand_angle);
+
+	ClassDB::bind_method(D_METHOD("set_rand_angle", "p_angle"), &EvenPointInstancer::set_rand_angle);
+
+	ClassDB::bind_method(D_METHOD("get_use_RandomRotation"), &EvenPointInstancer::get_use_RandomRotation);
+
+	ClassDB::bind_method(D_METHOD("set_use_RandomRotation", "p_option"), &EvenPointInstancer::set_use_RandomRotation);
+
 	// Properties
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "Count"), "set_count", "get_count");
@@ -463,6 +514,10 @@ void EvenPointInstancer::_bind_methods(){
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "Scale Range"), "set_scale_range", "get_scale_range");
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize"), "set_randomize", "get_randomize");
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Randomize Rotations"), "set_use_RandomRotation", "get_use_RandomRotation");
+
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Random Rotation"), "set_rand_angle", "get_rand_angle");
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "instance_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_instance_material", "get_instance_material");
 

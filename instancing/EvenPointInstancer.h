@@ -37,6 +37,8 @@ class EvenPointInstancer : public Node3D{
 		MeshInstance3D* target_mesh = nullptr;
 		bool useTargetMesh;
 		bool randomize;
+		bool randomRotations;
+		float rand_angle;
 		int actual_count;
 		int collision_mask;
 		Ref<RandomNumberGenerator> rng;
@@ -104,6 +106,12 @@ class EvenPointInstancer : public Node3D{
 
 		Ref<ShaderMaterial> get_instance_material();
 		void set_instance_material(const Ref<ShaderMaterial >& p_instance_mat);
+
+		float get_rand_angle();
+		void set_rand_angle(const float p_angle);
+
+		bool get_use_RandomRotation();
+		void set_use_RandomRotation(const bool p_option);
 
 	protected:
 		static void _bind_methods();

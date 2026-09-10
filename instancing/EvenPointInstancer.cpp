@@ -190,11 +190,9 @@ void EvenPointInstancer::instance(){
 			Transform3D instance_transform;
 			instance_transform.origin = pointPositions[i];
 
-
-			if(!randomRotations){
-				instance_transform.basis = Basis::from_euler(pointNormals[i]);
-			}else{
-				instance_transform.basis.rotate(Vector3::UP, rand_angle);
+			instance_transform.basis = Basis::from_euler(pointNormals[i]);
+			if(randomRotations){
+				instance_transform.basis.rotate(Vector3::UP, rng->randf_range(0.0, rand_angle));
 			}
 
 			instance_transform.basis *= rng->randf_range(scale_range.x, scale_range.y);

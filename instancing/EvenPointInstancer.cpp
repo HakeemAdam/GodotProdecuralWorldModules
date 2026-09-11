@@ -140,8 +140,6 @@ void EvenPointInstancer::manage_multis(){
 		//body->add_child(shape);
 
 		//add_child(body);
-
-
 		mm->set_mesh(raw_mesh);
 		mm->set_transform_format(MultiMesh::TRANSFORM_3D);
 		containers.push_back(mm);

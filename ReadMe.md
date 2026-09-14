@@ -5,6 +5,8 @@ date: 2026-09-14
 
 # Procedural Tools in Godot
 
+![Preview Gif](./media/instancingDemo.gif)
+
 A set of tool for procedural generation in Godot, Implemented as a module.
 	- [Documentation](https://hakeemadam.info/procedural-tools)
 

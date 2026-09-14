@@ -4,7 +4,6 @@
 #include "core/object/ref_counted.h"
 #include "core/templates/vector.h"
 #include "core/variant/variant.h"
-#include <cfloat>
 
 
 struct Point{
@@ -53,7 +52,7 @@ inline void GenerateKMeansCluster(KMeansInput& input, KMeansOutput& output){
 		// find closetes centorid for each point
 		//
 		for(int i =0; i < numPoints; i++){
-			float minDist = FLT_MAX;
+			float minDist =  std::numeric_limits<float>::max();
 			int closestCluster = -1;
 
 			for(int clusterId =0; clusterId < k_cluster; clusterId++){

@@ -1,5 +1,8 @@
 #pragma once
+#include "core/object/property_info.h"
 #include "core/object/ref_counted.h"
+#include "core/string/string_name.h"
+#include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/resources/surface_tool.h"
 #include "modules/noise/fastnoise_lite.h"
@@ -8,8 +11,7 @@ class Landscape : public MeshInstance3D{
 	GDCLASS(Landscape, MeshInstance3D)
 
 	private:
-		// Mesh, material, noise, mesh setting
-		// getters and setters: size, division, material + settings
+
 		Ref<Mesh> mesh;
 
 		Ref<SurfaceTool> st;
@@ -22,7 +24,6 @@ class Landscape : public MeshInstance3D{
 
 		bool p_use_texture;
 
-		// Mesh variables
 		Vector2 p_landscape_size;
 
 		float p_noise_scale;
@@ -31,13 +32,32 @@ class Landscape : public MeshInstance3D{
 
 		void create_collision();
 
-		// Brush
-		//MeshInstance3D* brush_mesh=nullptr;
+
+		void initialize_height();
+		void build_mesh();
+
+
+		// Erosion
+		void start_erosion_sim();
+		void erode(int p_drops_per_frame);
+
+		int num_droplets;
+		bool use_erosion;
+		int max_steps;
+		bool is_eroding= false;
+		bool is_paused = false;
+		int current_droplet = 0;
+		float mesh_update_timer = 0.0f;
+		const float MESH_UPDATE_INTERVAL = 0.1f;
+		int drops_per_frame = 50;
+
+		PackedFloat32Array height_map;
 
 	protected:
 		static void _bind_methods();
 
 		void _notification(int p_what);
+
 
 	public:
 		Landscape();
@@ -45,12 +65,8 @@ class Landscape : public MeshInstance3D{
 
 		void ready();
 
-		void generate_landscape();
-
-
 		// Signals
 		void _on_noise_changed();
-
 
 		// Mesh settings
 		Vector2 get_landscape_size();
@@ -84,8 +100,21 @@ class Landscape : public MeshInstance3D{
 
 		void set_use_texture(const bool p_set);
 
+		bool get_use_erosion();
 
+		void set_use_erosion(const bool p_set);
 
+		int get_max_steps();
+		void set_max_steps(const int p_step);
+
+		void set_run_simulation(bool p_run);
+		bool get_run_simulation() const;
+
+		void set_pause_simulation(bool p_pause);
+		bool get_pause_simulation() const;
+
+		void set_reset_and_clear(bool p_reset);
+		bool get_reset_and_clear() const;
 
 
 };

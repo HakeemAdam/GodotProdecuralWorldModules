@@ -14,89 +14,6 @@
 #include "modules/noise/fastnoise_lite.h"
 #include <algorithm>
 
-void Landscape::_bind_methods(){
-
-	ClassDB::bind_method(D_METHOD("_on_noise_changed"), &Landscape::_on_noise_changed);
-
-	ClassDB::bind_method(D_METHOD("get_landscape_size"), &Landscape::get_landscape_size);
-
-	ClassDB::bind_method(D_METHOD("set_landscape_size", "p_size"), &Landscape::set_landscape_size);
-
-	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "landscape_size"), "set_landscape_size", "get_landscape_size");
-
-	ClassDB::bind_method(D_METHOD("get_noise_scale"), &Landscape::get_noise_scale);
-
-	ClassDB::bind_method(D_METHOD("set_noise_scale", "p_scale"), &Landscape::set_noise_scale);
-
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "noise_scale"), "set_noise_scale", "get_noise_scale");
-
-	ClassDB::bind_method(D_METHOD("get_spacing"), &Landscape::get_spacing);
-
-	ClassDB::bind_method(D_METHOD("set_spacing", "p_space"), &Landscape::set_spacing);
-
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "spacing"), "set_spacing", "get_spacing");
-
-	ClassDB::bind_method(D_METHOD("get_landscape_material"), &Landscape::get_landscape_material);
-
-	ClassDB::bind_method(D_METHOD("set_landscape_material", "p_material"), &Landscape::set_landscape_material);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_material", "get_landscape_material");
-
-	ClassDB::bind_method(D_METHOD("get_landscape_noise"), &Landscape::get_landscape_noise);
-
-	ClassDB::bind_method(D_METHOD("set_landscape_noise", "p_noise"), &Landscape::set_landscape_noise);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_noise", PROPERTY_HINT_RESOURCE_TYPE, "FastNoiseLite",PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_noise", "get_landscape_noise");
-
-	ClassDB::bind_method(D_METHOD("get_landscape_texture"), &Landscape::get_landscape_texture);
-
-	ClassDB::bind_method(D_METHOD("set_landscape_texture", "p_texture"), &Landscape::set_landscape_texture);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D",PROPERTY_USAGE_DEFAULT), "set_landscape_texture", "get_landscape_texture");
-
-	ClassDB::bind_method(D_METHOD("get_use_texture"), &Landscape::get_use_texture);
-
-	ClassDB::bind_method(D_METHOD("set_use_texture", "p_set"), &Landscape::set_use_texture);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_texture"), "set_use_texture", "get_use_texture");
-
-	ClassDB::bind_method(D_METHOD("get_use_erosion"), &Landscape::get_use_erosion);
-
-	ClassDB::bind_method(D_METHOD("set_use_erosion", "p_set"), &Landscape::set_use_erosion);
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use Erosion"), "set_use_erosion", "get_use_erosion");
-
-	ClassDB::bind_method(D_METHOD("get_max_steps"), &Landscape::get_max_steps);
-
-	ClassDB::bind_method(D_METHOD("set_max_steps", "p_step"), &Landscape::set_max_steps);
-
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "Max Steps"), "set_max_steps", "get_max_steps");
-
-	ClassDB::bind_method(D_METHOD("start_erosion_sim"), &Landscape::start_erosion_sim);
-
-	ClassDB::bind_method(D_METHOD("initialize_heigth"), &Landscape::initialize_height);
-
-	ClassDB::bind_method(D_METHOD("build_mesh"), &Landscape::build_mesh);
-
-	ClassDB::bind_method(D_METHOD("set_run_simulation", "run"), &Landscape::set_run_simulation);
-    ClassDB::bind_method(D_METHOD("get_run_simulation"), &Landscape::get_run_simulation);
-
-    ClassDB::bind_method(D_METHOD("set_pause_simulation", "pause"), &Landscape::set_pause_simulation);
-    ClassDB::bind_method(D_METHOD("get_pause_simulation"), &Landscape::get_pause_simulation);
-
-    ClassDB::bind_method(D_METHOD("set_reset_and_clear", "reset"), &Landscape::set_reset_and_clear);
-    ClassDB::bind_method(D_METHOD("get_reset_and_clear"), &Landscape::get_reset_and_clear);
-
-	 ADD_GROUP("Simulation Controls", "");
-
-    // 3. Register the properties
-    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "run_simulation"), "set_run_simulation", "get_run_simulation");
-    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "pause_simulation"), "set_pause_simulation", "get_pause_simulation");
-    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "reset_and_clear"), "set_reset_and_clear", "get_reset_and_clear");
-
-
-}
-
 Landscape::Landscape(){
 	p_landscape_size = Vector2(32,32);
 	p_noise_scale = 10.0f;
@@ -110,9 +27,8 @@ Landscape::Landscape(){
 
 }
 
-Landscape::~Landscape(){
+Landscape::~Landscape(){}
 
-}
 
 void Landscape::_notification(int p_what){
 	switch(p_what){
@@ -163,6 +79,7 @@ void Landscape::start_erosion_sim(){
 	drops_per_frame = 50;
 }
 
+// PERF: Consider caching height
 void Landscape::initialize_height(){
 	int width = (int)p_landscape_size.x;
 	int depth = (int)p_landscape_size.y;
@@ -258,9 +175,8 @@ void Landscape::build_mesh(){
 	set_material_override(landscape_material);
 
 	// Collision
+	// TODO: Replace with static member
 	create_collision();
-
-
 
 }
 
@@ -287,13 +203,14 @@ void Landscape::erode(int p_drops_per_frame){
 	int map_w = p_landscape_size.x;
     int map_h = p_landscape_size.y;
 
-
 	struct Drop{
 		Vector2 pos;
 		Vector2 vel;
 		float water_amt;
 		float sediment_amt;
 	};
+
+	// TODO: Move to params
 
 	float capacity_factor = 0.1;
 	float min_capacity = 0.5;
@@ -489,6 +406,75 @@ void Landscape::set_reset_and_clear(bool p_reset) {
         build_mesh();
     }
 }
+
+
 bool Landscape::get_reset_and_clear() const {
     return false;
+}
+
+// Params
+
+void Landscape::_bind_methods(){
+
+	ClassDB::bind_method(D_METHOD("_on_noise_changed"), &Landscape::_on_noise_changed);
+
+	ClassDB::bind_method(D_METHOD("get_landscape_size"), &Landscape::get_landscape_size);
+	ClassDB::bind_method(D_METHOD("set_landscape_size", "p_size"), &Landscape::set_landscape_size);
+
+	ClassDB::bind_method(D_METHOD("get_noise_scale"), &Landscape::get_noise_scale);
+	ClassDB::bind_method(D_METHOD("set_noise_scale", "p_scale"), &Landscape::set_noise_scale);
+
+	ClassDB::bind_method(D_METHOD("get_spacing"), &Landscape::get_spacing);
+	ClassDB::bind_method(D_METHOD("set_spacing", "p_space"), &Landscape::set_spacing);
+
+	ClassDB::bind_method(D_METHOD("get_landscape_material"), &Landscape::get_landscape_material);
+	ClassDB::bind_method(D_METHOD("set_landscape_material", "p_material"), &Landscape::set_landscape_material);
+
+	ClassDB::bind_method(D_METHOD("get_landscape_noise"), &Landscape::get_landscape_noise);
+	ClassDB::bind_method(D_METHOD("set_landscape_noise", "p_noise"), &Landscape::set_landscape_noise);
+
+	ClassDB::bind_method(D_METHOD("get_landscape_texture"), &Landscape::get_landscape_texture);
+	ClassDB::bind_method(D_METHOD("set_landscape_texture", "p_texture"), &Landscape::set_landscape_texture);
+
+	ClassDB::bind_method(D_METHOD("get_use_texture"), &Landscape::get_use_texture);
+	ClassDB::bind_method(D_METHOD("set_use_texture", "p_set"), &Landscape::set_use_texture);
+
+	ClassDB::bind_method(D_METHOD("get_use_erosion"), &Landscape::get_use_erosion);
+	ClassDB::bind_method(D_METHOD("set_use_erosion", "p_set"), &Landscape::set_use_erosion);
+
+	ClassDB::bind_method(D_METHOD("get_max_steps"), &Landscape::get_max_steps);
+	ClassDB::bind_method(D_METHOD("set_max_steps", "p_step"), &Landscape::set_max_steps);
+
+	ClassDB::bind_method(D_METHOD("start_erosion_sim"), &Landscape::start_erosion_sim);
+	ClassDB::bind_method(D_METHOD("initialize_heigth"), &Landscape::initialize_height);
+	ClassDB::bind_method(D_METHOD("build_mesh"), &Landscape::build_mesh);
+	ClassDB::bind_method(D_METHOD("set_run_simulation", "run"), &Landscape::set_run_simulation);
+    ClassDB::bind_method(D_METHOD("get_run_simulation"), &Landscape::get_run_simulation);
+    ClassDB::bind_method(D_METHOD("set_pause_simulation", "pause"), &Landscape::set_pause_simulation);
+    ClassDB::bind_method(D_METHOD("get_pause_simulation"), &Landscape::get_pause_simulation);
+    ClassDB::bind_method(D_METHOD("set_reset_and_clear", "reset"), &Landscape::set_reset_and_clear);
+    ClassDB::bind_method(D_METHOD("get_reset_and_clear"), &Landscape::get_reset_and_clear);
+
+	// Param Groups
+
+	ADD_GROUP("Landscape Properties", "");
+
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "landscape_size"), "set_landscape_size", "get_landscape_size");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "noise_scale"), "set_noise_scale", "get_noise_scale");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "spacing"), "set_spacing", "get_spacing");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_texture"), "set_use_texture", "get_use_texture");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D",PROPERTY_USAGE_DEFAULT), "set_landscape_texture", "get_landscape_texture");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_noise", PROPERTY_HINT_RESOURCE_TYPE, "FastNoiseLite",PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_noise", "get_landscape_noise");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "landscape_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_landscape_material", "get_landscape_material");
+
+
+	ADD_GROUP("Simulation Controls", "");
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use Erosion"), "set_use_erosion", "get_use_erosion");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "Max Steps"), "set_max_steps", "get_max_steps");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "run_simulation"), "set_run_simulation", "get_run_simulation");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "pause_simulation"), "set_pause_simulation", "get_pause_simulation");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "reset_and_clear"), "set_reset_and_clear", "get_reset_and_clear");
+
+
 }

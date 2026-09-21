@@ -120,7 +120,7 @@ class ParticleSystem{
 				}
 			}
 			keepInBounds();
-			removeDead();
+			// removeDead();
 			rebuildTree();
 			octreeCollision();
 
@@ -131,10 +131,42 @@ class ParticleSystem{
 			static const Vector3 gravity = {0.0f, -9.8f, 0.0f};
 			const float dragCoeff = 0.15f;
 
-			for (auto& p : particles){
-				Vector3 force = gravity;
-				p.vel += force * dt;
-				p.vel -= p.vel * (dragCoeff * dt);
+			const float separationDist = 0.75f;
+
+			for(int i = 0; i < particles.size(); i++){
+				std::vector<int> neighbors;
+				float radius = particles[i].radius;
+				Vector3 queryPos = particles[i].pos;
+
+				queryRadius(tree, queryPos, radius * max_radius, positions, neighbors);
+
+				Vector3 separation = {0, 0, 0};
+				Vector3 cohesion = {0, 0, 0};
+				Vector3 alignment = {0, 0, 0};
+				int cohesionCount = 0;
+
+				for ( int j : neighbors) {
+					if ( j == i) { continue; }
+
+					Vector3 toOther = particles[j].pos - particles[i].pos;
+					float dist = toOther.length();
+
+					if (dist < separationDist && dist > 0.0001f){
+						separation -= toOther / dist * (separationDist - dist);
+					}
+
+					cohesion += particles[j].pos;
+					alignment += particles[j].vel;
+					cohesionCount ++;
+				}
+
+				if (cohesionCount > 0){
+					cohesion = (cohesion / cohesionCount) - particles[i].pos;
+					alignment = (alignment/ cohesionCount) - particles[i].vel;
+				}
+
+				particles[i].vel += (separation * 1.5f + cohesion * 0.3f + alignment * 0.2f) * gravity * dt;
+
 			}
 
 		};

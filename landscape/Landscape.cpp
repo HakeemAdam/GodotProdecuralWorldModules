@@ -480,7 +480,7 @@ void Landscape::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_reset_and_clear"), &Landscape::get_reset_and_clear);
 
 	ClassDB::bind_method(D_METHOD("get_capacity_factor"), &Landscape::get_capacity_factor);
-	ClassDB::bind_method(D_METHOD("set_use_texture", "p_rate"), &Landscape::set_capacity_factor);
+	ClassDB::bind_method(D_METHOD("set_capacity_factor", "p_rate"), &Landscape::set_capacity_factor);
 
 	ClassDB::bind_method(D_METHOD("get_erosion_speed"), &Landscape::get_erosion_speed);
 	ClassDB::bind_method(D_METHOD("set_erosion_speed", "p_speed"), &Landscape::set_erosion_speed);

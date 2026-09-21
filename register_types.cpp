@@ -5,6 +5,7 @@
 #include "modules/procedural_world/instancing/EvenPointInstancer.h"
 #include "modules/procedural_world/instancing/RandomInstancer.h"
 #include "modules/procedural_world/landscape/Landscape.h"
+#include "modules/procedural_world/particles/ParticlesGD.h"
 
 void initialize_procedural_world_module(ModuleInitializationLevel p_level) {
     if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -14,6 +15,7 @@ void initialize_procedural_world_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<Landscape>();
 	GDREGISTER_CLASS(RandomInstancer);
 	GDREGISTER_CLASS(EvenPointInstancer);
+	GDREGISTER_CLASS(ParticlesGD);
 
 	//GDREGISTER_CLASS(Landscape);
 }

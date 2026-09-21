@@ -1,6 +1,7 @@
 #pragma once
 
-#include "GridOps.h"
+
+#include "../utilities/GridOps.h"
 #include "core/math/random_number_generator.h"
 #include "core/math/vector2.h"
 #include "core/math/vector3.h"

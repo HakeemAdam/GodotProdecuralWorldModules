@@ -19,11 +19,7 @@
 #include "core/variant/variant.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/multimesh_instance_3d.h"
-#include "scene/3d/physics/collision_object_3d.h"
-#include "scene/3d/physics/collision_shape_3d.h"
-#include "scene/3d/physics/static_body_3d.h"
 #include "scene/main/node.h"
-#include "scene/resources/3d/concave_polygon_shape_3d.h"
 #include "scene/resources/3d/world_3d.h"
 #include "scene/resources/mesh.h"
 #include "scene/resources/multimesh.h"
@@ -31,7 +27,7 @@
 #include "servers/physics_3d/physics_server_3d_types.h"
 #include <cstdlib>
 #include "EvenPointInstancer.h"
-#include "PoissonDiskSample.h"
+#include "../utilities/PoissonDiskSample.h"
 
 EvenPointInstancer::EvenPointInstancer(){
 	count = 10;

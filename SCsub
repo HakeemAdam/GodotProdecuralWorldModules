@@ -5,4 +5,6 @@ env.add_source_files(env.modules_sources, "*.cpp")
 
 env.add_source_files(env.modules_sources, "landscape/*.cpp")
 env.add_source_files(env.modules_sources, "instancing/*.cpp")
+env.add_source_files(env.modules_sources, "utilities/*.cpp")
+env.add_source_files(env.modules_sources, "particles/*.cpp")
 

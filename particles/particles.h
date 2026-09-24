@@ -23,6 +23,9 @@ class ParticleSystem{
 		float max_radius = 0.0f;
 		std::vector<Vector3> positions;
 
+
+
+
 		// Octree
 		OctNode* tree = nullptr;
 
@@ -43,15 +46,43 @@ class ParticleSystem{
 		// Particle helpers
 		void keepInBounds() {
 			for (auto& p : particles) {
-				if (p.pos.x < minBbox.x) { p.pos.x = minBbox.x; p.vel.x *= -1; }
-				if (p.pos.x > maxBbox.x) { p.pos.x = maxBbox.x; p.vel.x *= -1; }
-				if (p.pos.y < minBbox.y) { p.pos.y = minBbox.y; p.vel.y *= -1; }
-				if (p.pos.y > maxBbox.y) { p.pos.y = maxBbox.y; p.vel.y *= -1; }
-				if (p.pos.z < minBbox.z) { p.pos.z = minBbox.z; p.vel.z *= -1; }
-				if (p.pos.z > maxBbox.z) { p.pos.z = maxBbox.z; p.vel.z *= -1; }
+				if (p.pos.x < minBbox.x) { p.pos.x = minBbox.x; p.vel.x *= -restitution; }
+				if (p.pos.x > maxBbox.x) { p.pos.x = maxBbox.x; p.vel.x *= -restitution; }
+				if (p.pos.y < minBbox.y) { p.pos.y = minBbox.y; p.vel.y *= -restitution; }
+				if (p.pos.y > maxBbox.y) { p.pos.y = maxBbox.y; p.vel.y *= -restitution; }
+				if (p.pos.z < minBbox.z) { p.pos.z = minBbox.z; p.vel.z *= -restitution; }
+				if (p.pos.z > maxBbox.z) { p.pos.z = maxBbox.z; p.vel.z *= -restitution; }
 			}
 		}
 
+		void wrapBounds(){
+			float width = maxBbox.x - minBbox.x;
+			float height = maxBbox.y - minBbox.y;
+			float depth = maxBbox.z - minBbox.z;
+
+			for( auto& p: particles){
+				if(p.pos.x < minBbox.x){
+					p.pos.x += width;
+				}
+				if(p.pos.x > maxBbox.x){
+					p.pos.x -= width;
+				}
+
+				if(p.pos.y < minBbox.y){
+					p.pos.y += height;
+				}
+				if(p.pos.y > maxBbox.y){
+					p.pos.y -= height;
+				}
+
+				if(p.pos.z < minBbox.z){
+					p.pos.z += depth;
+				}
+				if(p.pos.z > maxBbox.z){
+					p.pos.z -= depth;
+				}
+			}
+		}
 
 
 	public:
@@ -61,7 +92,21 @@ class ParticleSystem{
 
         ~ParticleSystem(){freeOctree(tree);}
 
+		// Forces
+		float dragCoeff = 0.15f;
+		float separationDist = 0.75f;
+		Vector3 gravity = {0.0f, -9.8f, 0.0f};
+		float separationWeight = 1.5f;
+		float cohesionWeight = 0.2f;
+		float alignmentWeight = 0.5f;
+		float max_raduis = 0.0f;
+		float restitution = 0.5f;
+		float max_speed = 5.0f;
+		float max_force = 2.0f;
+
 		static constexpr float INFINITE_LIFETIME = 1.0f;
+
+
 		void spawn(int count, Vector3 minBound, Vector3 maxBound, float lifeTime, Color clr, float radius = 2.0f){
 
 			particles.clear();
@@ -70,6 +115,7 @@ class ParticleSystem{
 			minBbox = minBound;
 			maxBbox = maxBound;
 			particleCount = count;
+			max_radius = radius;
 
 			for (int i = 0; i < particleCount; i++){
 				Particle p;
@@ -78,6 +124,7 @@ class ParticleSystem{
 					randFloat_range(minBbox.y, maxBbox.y),
 					randFloat_range(minBbox.z, maxBbox.z)
 				};
+				p.vel = {0, 0, 0};
 				p.age = lifeTime;
 				p.color = clr;
 				p.radius = radius;
@@ -101,7 +148,6 @@ class ParticleSystem{
 				float r = std::sqrt(std::max(0.0f, 1.0f -z * z));
 				float speed = randFloat_range(minSpeed, maxSpeed);
 
-
 				p.vel = {
 					r * std::cos(theta) * speed,
 					r * std::sin(theta) * speed,
@@ -112,9 +158,19 @@ class ParticleSystem{
 
 		void update(float dt){
 
+			if (particles.empty()) {
+			    return;
+			}
+
 			applyForce(dt);
 			for (auto& p: particles){
+				float speed = p.vel.length();
+				if (speed > max_speed && speed > 0.00001f){
+					p.vel = (p.vel / speed) * max_speed;
+				}
+
 				p.pos += p.vel * dt;
+
 				if ( p.age != INFINITE_LIFETIME){
 					p.age -= dt;
 				}
@@ -128,10 +184,6 @@ class ParticleSystem{
 
 
 		void applyForce(float dt){
-			static const Vector3 gravity = {0.0f, -9.8f, 0.0f};
-			const float dragCoeff = 0.15f;
-
-			const float separationDist = 0.75f;
 
 			for(int i = 0; i < particles.size(); i++){
 				std::vector<int> neighbors;
@@ -151,7 +203,7 @@ class ParticleSystem{
 					Vector3 toOther = particles[j].pos - particles[i].pos;
 					float dist = toOther.length();
 
-					if (dist < separationDist && dist > 0.0001f){
+					if (dist < separationDist && dist > 0.01f){
 						separation -= toOther / dist * (separationDist - dist);
 					}
 
@@ -160,12 +212,21 @@ class ParticleSystem{
 					cohesionCount ++;
 				}
 
+				Vector3 steeringForce = {0,0,0};
 				if (cohesionCount > 0){
 					cohesion = (cohesion / cohesionCount) - particles[i].pos;
 					alignment = (alignment/ cohesionCount) - particles[i].vel;
+					steeringForce += separation * separationWeight;
+					steeringForce += cohesion * cohesionWeight;
+					steeringForce += alignment * alignmentWeight;
+				}
+				else{
+					steeringForce += separation * separationWeight;
 				}
 
-				particles[i].vel += (separation * 1.5f + cohesion * 0.3f + alignment * 0.2f) * gravity * dt;
+				particles[i].vel += steeringForce * dt;
+				particles[i].vel += gravity * dt;
+				particles[i].vel *= (1.0f - dragCoeff * dt);
 
 			}
 
@@ -180,8 +241,11 @@ class ParticleSystem{
 				positions.push_back(p.pos);
 				max_radius = std::max(max_radius, p.radius);
 			}
-
-			tree = positions.empty() ? nullptr : buildOctree(positions, makeBounds());
+			if (!positions.empty()) {
+				tree = buildOctree(positions, makeBounds());
+			}else {
+				tree = nullptr;
+			}
 		}
 
 		void removeDead(){
@@ -194,8 +258,6 @@ class ParticleSystem{
 
 		void octreeCollision(int solverIterations = 1){
 			if (!tree) {return;}
-			const float restitution = 0.5f;
-
 			for (int iter = 0; iter < solverIterations; iter++){
 				for(int i =0; i < particles.size(); i++){
 					float radius = particles[i].radius;
